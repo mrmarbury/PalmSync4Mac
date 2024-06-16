@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# Simple first test to see how feasible it would be to sync calendar dates from
+# Apple Calendar to a Palm device.
+################################################################################
 
 function convert_date() {
 	local epoch=$1

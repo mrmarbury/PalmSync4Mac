@@ -1,8 +1,8 @@
-defmodule Palmsync4macTest do
+defmodule PalmSync4MacTest do
   use ExUnit.Case
-  doctest Palmsync4mac
+  doctest PalmSync4Mac
 
   test "greets the world" do
-    assert Palmsync4mac.hello() == :world
+    assert PalmSync4Mac.hello() == :world
   end
 end

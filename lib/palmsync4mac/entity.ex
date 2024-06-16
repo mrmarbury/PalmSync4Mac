@@ -1,7 +1,7 @@
-defmodule Palmsync4mac.Entity do
+defmodule PalmSync4Mac.Entity do
   use Ash.Domain
 
   resources do
-    resource(Palmsync4mac.Entity.Calendar)
+    resource(PalmSync4Mac.Entity.Calendar)
   end
 end

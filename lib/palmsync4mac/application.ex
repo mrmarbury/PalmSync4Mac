@@ -1,4 +1,4 @@
-defmodule Palmsync4mac.Application do
+defmodule PalmSync4Mac.Application do
   # See https://hexdocs.pm/elixir/Application.html
   # for more information on OTP Applications
   @moduledoc false
@@ -8,13 +8,13 @@ defmodule Palmsync4mac.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Starts a worker by calling: Palmsync4mac.Worker.start_link(arg)
-      # {Palmsync4mac.Worker, arg}
+      # Starts a worker by calling: PalmSync4Mac.Worker.start_link(arg)
+      # {PalmSync4Mac.Worker, arg}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: Palmsync4mac.Supervisor]
+    opts = [strategy: :one_for_one, name: PalmSync4Mac.Supervisor]
     Supervisor.start_link(children, opts)
   end
 end

@@ -1,6 +1,6 @@
-defmodule Palmsync4mac do
+defmodule PalmSync4Mac do
   @moduledoc """
-  Documentation for `Palmsync4mac`.
+  Documentation for `PalmSync4Mac`.
   """
 
   @doc """
@@ -8,7 +8,7 @@ defmodule Palmsync4mac do
 
   ## Examples
 
-      iex> Palmsync4mac.hello()
+      iex> PalmSync4Mac.hello()
       :world
 
   """
