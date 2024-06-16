@@ -24,3 +24,10 @@ palmsync4mac-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# ignoring sqlite files
+*.sqlite
+
+# LSP cache
+.elixir_ls/
+.lexical/

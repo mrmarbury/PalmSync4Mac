@@ -1,5 +1,12 @@
 defmodule PalmSync4Mac.Entity.Calendar do
-  use Ash.Resource, domain: PalmSync4Mac.Entity
+  use Ash.Resource,
+    domain: PalmSync4Mac.Entity,
+    data_layer: AshSqlite.DataLayer
+
+  sqlite do
+    table("calendar")
+    repo(PalmSync4Mac.Repo)
+  end
 
   actions do
     defaults([:read, :destroy])

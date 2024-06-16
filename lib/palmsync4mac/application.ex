@@ -10,6 +10,7 @@ defmodule PalmSync4Mac.Application do
     children = [
       # Starts a worker by calling: PalmSync4Mac.Worker.start_link(arg)
       # {PalmSync4Mac.Worker, arg}
+      PalmSync4Mac.Repo
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
