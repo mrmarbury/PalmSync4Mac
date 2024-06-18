@@ -15,7 +15,7 @@ defmodule PalmSync4Mac.Utils.SystemProfiler do
         no_device
 
       {:ok, items} ->
-        Enum.filter(items, fn map -> is_palm_device?(map) end)
+        Enum.filter(items, fn map -> palm_device?(map) end)
         |> case do
           [] -> no_device
           devices -> {:ok, devices}
@@ -46,7 +46,7 @@ defmodule PalmSync4Mac.Utils.SystemProfiler do
     end
   end
 
-  defp is_palm_device?(map) do
+  defp palm_device?(map) do
     Map.get(map, "vendor_id")
     |> String.contains?(@vendor_id)
   end
