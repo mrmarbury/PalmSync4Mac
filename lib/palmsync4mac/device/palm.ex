@@ -1,4 +1,7 @@
 defmodule PalmSync4Mac.Device.Palm do
+  @moduledoc """
+  Represents a Palm device that can be synced with a Mac
+  """
   use Ash.Resource,
     domain: PalmSync4Mac.Device,
     data_layer: AshSqlite.DataLayer
