@@ -27,7 +27,7 @@ defmodule PalmSync4Mac.MixProject do
       {:picosat_elixir, "~> 0.2"},
       {:jason, "~> 1.4.1"},
       # dev & test
-      {:mox, "~> 1.0", only: :test},
+      {:patch, "~> 0.12.0", only: [:test]},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end

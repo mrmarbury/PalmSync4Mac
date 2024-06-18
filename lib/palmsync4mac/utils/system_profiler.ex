@@ -2,7 +2,6 @@ defmodule PalmSync4Mac.Utils.SystemProfiler do
   @moduledoc """
   Utility to query Mac system_profiler for USB devices
   """
-  alias PalmSync4Mac.Utils.SystemCmd
 
   # Palm Vendor ID
   @vendor_id "0x0830"
@@ -28,10 +27,9 @@ defmodule PalmSync4Mac.Utils.SystemProfiler do
   end
 
   defp usb_devices do
-    case SystemCmd.cmd("system_profiler", ["SPUSBDataType", "-json"]) do
+    case System.cmd("system_profiler", ["SPUSBDataType", "-json"]) do
       {output, 0} ->
         json = Jason.decode!(output)
-        IO.inspect(json)
 
         items =
           json["SPUSBDataType"]
