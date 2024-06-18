@@ -12,7 +12,7 @@ defmodule PalmSync4Mac.Device.Palm do
     defaults([:read, :destroy])
 
     create(:create) do
-      accept([:name, :device_id])
+      accept([:name, :id])
     end
 
     update :update_name do
@@ -20,24 +20,32 @@ defmodule PalmSync4Mac.Device.Palm do
     end
 
     update :set_synced do
-      accept([:last_synced])
+      accept([:last_synced, :last_sync_status])
     end
   end
 
   attributes do
-    uuid_primary_key(:id)
+    attribute :id, :integer do
+      description("Unique Palm device ID encoded as serial_number in system_profiler USB data")
+      allow_nil?(false)
+      primary_key?(true)
+      public?(true)
+    end
 
-    attribute(:name, :string) do
+    attribute :name, :string do
+      description("Aka HotSync Name of the Palm device")
       allow_nil?(false)
       public?(true)
     end
 
-    attribute(:device_id, :integer) do
-      allow_nil?(false)
+    attribute :last_synced, :date do
+      description("Last time this Palm device was synced. Nil/empty if never synced")
+      allow_nil?(true)
       public?(true)
     end
 
-    attribute(:last_synced, :date) do
+    attribute :last_sync_status, :string do
+      description("Last sync status: ok, error. Nil/empty if never synced")
       allow_nil?(true)
       public?(true)
     end

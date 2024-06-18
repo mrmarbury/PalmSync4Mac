@@ -8,4 +8,5 @@ Sync your Palm devices with your Mac apps.
 - `mix deps.compile`
 - `mix ash_sqlite.create`
 - `mix ash_sqlite.migrate`
+- `mix compile`
 - `iex -S mix`

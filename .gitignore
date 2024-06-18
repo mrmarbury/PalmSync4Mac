@@ -26,8 +26,12 @@ palmsync4mac-*.tar
 /tmp/
 
 # ignoring sqlite files
-*.sqlite
+*.sqlite*
 
 # LSP cache
 .elixir_ls/
 .lexical/
+
+# vscode
+.lh/
+.vscode/
