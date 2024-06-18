@@ -35,3 +35,6 @@ palmsync4mac-*.tar
 # vscode
 .lh/
 .vscode/
+
+# swift compiled files
+ek_interface

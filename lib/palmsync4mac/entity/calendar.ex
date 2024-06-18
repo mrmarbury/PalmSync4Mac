@@ -1,4 +1,7 @@
 defmodule PalmSync4Mac.Entity.Calendar do
+  @moduledoc """
+  The Apple Calendar entity
+  """
   use Ash.Resource,
     domain: PalmSync4Mac.Entity,
     data_layer: AshSqlite.DataLayer
@@ -30,6 +33,17 @@ defmodule PalmSync4Mac.Entity.Calendar do
     end
 
     attribute(:end_date, :integer) do
+      allow_nil?(false)
+      public?(true)
+    end
+
+    attribute(:all_day, :boolean) do
+      allow_nil?(true)
+      public?(true)
+    end
+
+    attribute(:status, :atom) do
+      description("Status of the event. Can be one of :new, :updated, :deleted")
       allow_nil?(false)
       public?(true)
     end
