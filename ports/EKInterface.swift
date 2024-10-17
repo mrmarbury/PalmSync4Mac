@@ -12,8 +12,7 @@ func sendMessage(_ message: String) {
     FileHandle.standardOutput.write(outputData)
 }
 
-// Function to read messages with a 4-byte length prefix
-func readMessage() -> String? {
+func readMessage() -> [String: Any]? {
     let stdin = FileHandle.standardInput
 
     // Read the 4-byte length header
@@ -30,11 +29,31 @@ func readMessage() -> String? {
         return nil
     }
 
-    return String(data: messageData, encoding: .utf8)
+    if let messageString = String(data: messageData, encoding: .utf8),
+       let data = messageString.data(using: .utf8) {
+        // Parse the JSON message
+        do {
+            if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                return json
+            }
+        } catch {
+            sendMessage("{\"error\": \"invalid_json\", \"details\": \"\(error.localizedDescription)\"}")
+        }
+    } else {
+        sendMessage("{\"error\": \"invalid_encoding\"}")
+    }
+    return nil
 }
 
+
 // Function to get calendar events
-func getCalendarEvents() async {
+// This is 0-based meaning:
+// 0 -> today
+// 1 -> today & tomorrow
+// 2 -> today, tomorrow & the day after
+// 6 -> next 7 days
+// and so on
+func getCalendarEvents(days: Int) async {
     // Request full access to events
     do {
         let granted = try await store.requestFullAccessToEvents()
@@ -47,15 +66,19 @@ func getCalendarEvents() async {
         return
     }
 
-    let startDate = Date()
-    let endDate = Calendar.current.date(byAdding: .day, value: 14, to: startDate)!
+    // Set startDate to today at 00:00
+    let startDate = Calendar.current.startOfDay(for: Date())
+
+    // Compute endDate based on the days parameter
+    let endDate = Calendar.current.date(byAdding: .day, value: days + 1, to: startDate)!
+
 
     let predicate = store.predicateForEvents(withStart: startDate, end: endDate, calendars: nil)
     let events = store.events(matching: predicate)
 
     let eventList = events.map { event -> [String: Any] in
         return [
-            "title": event.title ?? "No Title",
+            "title": event.title ?? "Event",
             "startDate": ISO8601DateFormatter().string(from: event.startDate),
             "endDate": ISO8601DateFormatter().string(from: event.endDate),
             "calendar": event.calendar.title
@@ -73,23 +96,25 @@ func getCalendarEvents() async {
     }
 }
 
-// Start the main loop
 func startMainLoop() {
     DispatchQueue.global(qos: .userInitiated).async {
-        while let input = readMessage() {
-            switch input.trimmingCharacters(in: .whitespacesAndNewlines) {
-            case "get_events":
-                Task {
-                    await getCalendarEvents()
+        while let message = readMessage() {
+            if let command = message["command"] as? String {
+                switch command {
+                case "get_events":
+                    let days = message["days"] as? Int ?? 13 // Default to 14 days if not specified
+                    Task {
+                        await getCalendarEvents(days: days)
+                    }
+                default:
+                    sendMessage("{\"error\": \"unknown_command\"}")
                 }
-            default:
-                sendMessage("{\"error\": \"unknown_command\"}")
+            } else {
+                sendMessage("{\"error\": \"invalid_message_format\"}")
             }
         }
     }
-    // Keep the main thread alive to process UI events
     RunLoop.main.run()
 }
 
 startMainLoop()
-

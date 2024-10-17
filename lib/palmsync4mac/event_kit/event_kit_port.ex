@@ -6,8 +6,11 @@ defmodule PalmSync4Mac.EventKit.EventKitPort do
     Port.open({:spawn, "./ports/ek_interface"}, [:binary, :exit_status, packet: 4])
   end
 
-  def get_calendar_events(port) do
-    Port.command(port, "get_events\n")
+  # default is next 2 weeks
+  def get_calendar_events(port, days \\ 13) do
+    command = %{"command" => "get_events", "days" => days}
+    message = Jason.encode!(command)
+    Port.command(port, message)
 
     receive_response(port)
   end
