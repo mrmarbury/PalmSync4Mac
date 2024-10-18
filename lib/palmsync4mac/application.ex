@@ -8,9 +8,8 @@ defmodule PalmSync4Mac.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Starts a worker by calling: PalmSync4Mac.Worker.start_link(arg)
-      # {PalmSync4Mac.Worker, arg}
-      PalmSync4Mac.EventKit.EventKitHandler,
+      PalmSync4Mac.EventKit.EventKitSup,
+      # PalmSync4Mac.PilotLink.PilotLinkSup,
       PalmSync4Mac.Repo
     ]
 

@@ -48,21 +48,22 @@ func readMessage() -> [String: Any]? {
 
 // Function to get calendar events
 // This is 0-based meaning:
-// 0 -> today
-// 1 -> today & tomorrow
-// 2 -> today, tomorrow & the day after
-// 6 -> next 7 days
+//  0 -> today
+//  1 -> today & tomorrow
+//  2 -> today, tomorrow & the day after
+//  6 -> next 7 days
+// 13 -> next 14 days
 // and so on
-func getCalendarEvents(days: Int) async {
+func getCalendarEvents(days: Int, requestId: Int?) async {
     // Request full access to events
     do {
         let granted = try await store.requestFullAccessToEvents()
         guard granted else {
-            sendMessage("{\"error\": \"access_denied\"}")
+            sendMessage("{\"error\": \"access_denied\", \"request_id\": \(requestId ?? -1)}")
             return
         }
     } catch {
-        sendMessage("{\"error\": \"\(error.localizedDescription)\"}")
+        sendMessage("{\"error\": \"\(error.localizedDescription)\", \"request_id\": \(requestId ?? -1)}")
         return
     }
 
@@ -71,7 +72,6 @@ func getCalendarEvents(days: Int) async {
 
     // Compute endDate based on the days parameter
     let endDate = Calendar.current.date(byAdding: .day, value: days + 1, to: startDate)!
-
 
     let predicate = store.predicateForEvents(withStart: startDate, end: endDate, calendars: nil)
     let events = store.events(matching: predicate)
@@ -85,14 +85,19 @@ func getCalendarEvents(days: Int) async {
         ]
     }
 
-    if let jsonData = try? JSONSerialization.data(withJSONObject: eventList, options: []) {
+    let responseDict: [String: Any] = [
+        "events": eventList,
+        "request_id": requestId ?? -1
+    ]
+
+    if let jsonData = try? JSONSerialization.data(withJSONObject: responseDict, options: []) {
         if let jsonString = String(data: jsonData, encoding: .utf8) {
             sendMessage(jsonString)
         } else {
-            sendMessage("{\"error\": \"json_encoding_failed\"}")
+            sendMessage("{\"error\": \"json_encoding_failed\", \"request_id\": \(requestId ?? -1)}")
         }
     } else {
-        sendMessage("{\"error\": \"json_serialization_failed\"}")
+        sendMessage("{\"error\": \"json_serialization_failed\", \"request_id\": \(requestId ?? -1)}")
     }
 }
 
@@ -100,14 +105,15 @@ func startMainLoop() {
     DispatchQueue.global(qos: .userInitiated).async {
         while let message = readMessage() {
             if let command = message["command"] as? String {
+                let requestId = message["request_id"] as? Int
                 switch command {
                 case "get_events":
                     let days = message["days"] as? Int ?? 13 // Default to 14 days if not specified
                     Task {
-                        await getCalendarEvents(days: days)
+                        await getCalendarEvents(days: days, requestId: requestId)
                     }
                 default:
-                    sendMessage("{\"error\": \"unknown_command\"}")
+                    sendMessage("{\"error\": \"unknown_command\", \"request_id\": \(requestId ?? -1)}")
                 }
             } else {
                 sendMessage("{\"error\": \"invalid_message_format\"}")

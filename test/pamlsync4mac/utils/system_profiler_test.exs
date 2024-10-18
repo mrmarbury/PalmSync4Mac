@@ -1,8 +1,8 @@
-defmodule PalmSync4Mac.Utils.SystemProfilerTest do
+defmodule PalmSync4Mac.System.SystemProfilerTest do
   use ExUnit.Case, async: true
   use Patch
 
-  alias PalmSync4Mac.Utils.SystemProfiler
+  alias PalmSync4Mac.System.SystemProfiler
 
   @full_json_with_palm """
     {

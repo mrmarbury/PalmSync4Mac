@@ -1,7 +1,8 @@
-defmodule PalmSync4Mac.Utils.SystemProfiler do
+defmodule PalmSync4Mac.System.SystemProfiler do
   @moduledoc """
   Utility to query Mac system_profiler for USB devices
   """
+  # FIXME: make Genserver and make System.cmd a Port.
 
   # Palm Vendor ID
   @vendor_id "0x0830"
