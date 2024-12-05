@@ -12,5 +12,5 @@ WARNING: DON'T USE YET! IT'S NOT DOING ANYTHING MEANINGFUL YET!
 - `mix ash_sqlite.create`
 - `mix ash_sqlite.migrate`
 - `mix compile`
-- `cd ports && swiftc -o ek_interface EKInterface.swift && cd ..`
+- `cd ports && swiftc -o ek_calendar_interface EKCalendarInterface.swift && cd ..`
 - `iex -S mix`

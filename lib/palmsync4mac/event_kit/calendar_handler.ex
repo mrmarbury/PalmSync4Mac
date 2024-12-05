@@ -15,9 +15,11 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
 
   `days` is an integer representing the number of
       days to fetch events for, starting from today. Where 0 means today only.
+  calendar is a string representing the calendar to fetch events from.
+      If nil, all calendars are considered.
   """
-  def get_events(days \\ 13) do
-    GenServer.call(__MODULE__, {:get_calendar_events, days})
+  def get_events(days \\ 13, calendar \\ nil) do
+    GenServer.call(__MODULE__, {:get_calendar_events, days, calendar})
   end
 
   @impl true
@@ -36,7 +38,7 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
 
   @impl true
   def handle_call(
-        {:get_calendar_events, days},
+        {:get_calendar_events, days, calendar},
         from,
         %{port: port, requests: requests, request_id: request_id} = state
       ) do
@@ -45,6 +47,7 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
     command = %{
       "command" => "get_events",
       "days" => days,
+      "calendar" => calendar,
       "request_id" => new_request_id
     }
 

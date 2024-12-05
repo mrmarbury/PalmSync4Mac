@@ -47,14 +47,14 @@ func readMessage() -> [String: Any]? {
 
 
 // Function to get calendar events
-// This is 0-based meaning:
+// Days are 0-based meaning:
 //  0 -> today
 //  1 -> today & tomorrow
 //  2 -> today, tomorrow & the day after
 //  6 -> next 7 days
 // 13 -> next 14 days
 // and so on
-func getCalendarEvents(days: Int, requestId: Int?) async {
+func getCalendarEvents(days: Int, calendar: String?, requestId: Int?) async {
     // Request full access to events
     do {
         let granted = try await store.requestFullAccessToEvents()
@@ -73,7 +73,15 @@ func getCalendarEvents(days: Int, requestId: Int?) async {
     // Compute endDate based on the days parameter
     let endDate = Calendar.current.date(byAdding: .day, value: days + 1, to: startDate)!
 
-    let predicate = store.predicateForEvents(withStart: startDate, end: endDate, calendars: nil)
+    // Get the calendar object if specified
+    let selectedCalendars = getSelectedCalendars(named: calendar, store: store)
+    
+    if let calendarName = calendar, selectedCalendars == nil {
+        sendMessage("{\"error\": \"calendar_not_found\", \"request_id\": \(requestId ?? -1)}")
+        return
+    }
+
+    let predicate = store.predicateForEvents(withStart: startDate, end: endDate, calendars: selectedCalendars)
     let events = store.events(matching: predicate)
 
     let eventList = events.map { event -> [String: Any] in
@@ -101,6 +109,22 @@ func getCalendarEvents(days: Int, requestId: Int?) async {
     }
 }
 
+func getSelectedCalendars(named calendarName: String?, store: EKEventStore) -> [EKCalendar]? {
+    // Fetch all calendars
+    let allCalendars = store.calendars(for: .event)
+    
+    // If no calendar name is provided, return nil (indicating all calendars)
+    guard let calendarName = calendarName else {
+        return nil
+    }
+    
+    // Filter calendars by the specified name
+    let selectedCalendars = allCalendars.filter { $0.title == calendarName }
+    
+    // Return nil if no matching calendars are found
+    return selectedCalendars.isEmpty ? nil : selectedCalendars
+}
+
 func startMainLoop() {
     DispatchQueue.global(qos: .userInitiated).async {
         while let message = readMessage() {
@@ -109,8 +133,9 @@ func startMainLoop() {
                 switch command {
                 case "get_events":
                     let days = message["days"] as? Int ?? 13 // Default to 14 days if not specified
+                    let calendar = message["calendar"] as? String ?? nil
                     Task {
-                        await getCalendarEvents(days: days, requestId: requestId)
+                        await getCalendarEvents(days: days, calendar: calendar, requestId: requestId)
                     }
                 default:
                     sendMessage("{\"error\": \"unknown_command\", \"request_id\": \(requestId ?? -1)}")
