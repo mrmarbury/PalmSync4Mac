@@ -16,6 +16,7 @@ defmodule PalmSync4Mac.Repo.Migrations.MigrateResources1 do
     end
 
     create table(:calendar_event, primary_key: false) do
+      add :apple_event_id, :text
       add :deleted, :boolean
       add :invitees, {:array, :text}
       add :calendar_name, :text, null: false
@@ -29,9 +30,41 @@ defmodule PalmSync4Mac.Repo.Migrations.MigrateResources1 do
       add :source, :text, null: false
       add :id, :uuid, null: false, primary_key: true
     end
+
+    create unique_index(
+             :calendar_event,
+             [
+               :title,
+               :start_date,
+               :end_date,
+               :notes,
+               :url,
+               :location,
+               :invitees,
+               :last_modified,
+               :calendar_name
+             ],
+             name: "calendar_event_unique_event_index"
+           )
   end
 
   def down do
+    drop_if_exists unique_index(
+                     :calendar_event,
+                     [
+                       :title,
+                       :start_date,
+                       :end_date,
+                       :notes,
+                       :url,
+                       :location,
+                       :invitees,
+                       :last_modified,
+                       :calendar_name
+                     ],
+                     name: "calendar_event_unique_event_index"
+                   )
+
     drop table(:calendar_event)
 
     drop table(:palm)

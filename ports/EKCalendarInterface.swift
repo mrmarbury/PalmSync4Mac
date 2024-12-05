@@ -76,7 +76,7 @@ func getCalendarEvents(days: Int, calendar: String?, requestId: Int?) async {
     // Get the calendar object if specified
     let selectedCalendars = getSelectedCalendars(named: calendar, store: store)
     
-    if let calendarName = calendar, selectedCalendars == nil {
+    if let _ = calendar, selectedCalendars == nil {
         sendMessage("{\"error\": \"calendar_not_found\", \"request_id\": \(requestId ?? -1)}")
         return
     }
@@ -93,7 +93,8 @@ func getCalendarEvents(days: Int, calendar: String?, requestId: Int?) async {
             "invitees": event.attendees?.map { $0.url.absoluteString } ?? [],
             "url": event.url?.absoluteString ?? "",
             "location": event.location ?? "",
-            "notes": event.notes ?? ""
+            "notes": event.notes ?? "",
+            "apple_event_id": event.eventIdentifier!
             // we are not supporting attachments for now
         ]
     }

@@ -42,13 +42,13 @@
     }
   ],
   "table": "palm",
-  "hash": "64EDA70C76F69AD4BCA4680285A8B7852CC56DCFF54C322A5CE806267DE3808B",
+  "hash": "B74C40E976FA8F414DB9CFD61761D8F3B209A8CFC7F8931141B569A3CAC0EFEB",
   "repo": "Elixir.PalmSync4Mac.Repo",
   "identities": [],
   "multitenancy": {
     "global": null,
-    "attribute": null,
-    "strategy": null
+    "strategy": null,
+    "attribute": null
   },
   "base_filter": null,
   "custom_indexes": [],

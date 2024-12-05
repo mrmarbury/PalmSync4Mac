@@ -122,16 +122,43 @@
       "allow_nil?": true,
       "generated?": false,
       "primary_key?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "text",
+      "source": "apple_event_id",
+      "references": null,
+      "allow_nil?": true,
+      "generated?": false,
+      "primary_key?": false
     }
   ],
   "table": "calendar_event",
-  "hash": "54464521B7ECEADFDCCF9EE1320C5ACFE8236C7344111DE1DEA1E949FE54C136",
+  "hash": "CE220A87845DE34AEC0CEB17463CD607E14DB53DE633489CA0E24AEF143981B5",
   "repo": "Elixir.PalmSync4Mac.Repo",
-  "identities": [],
+  "identities": [
+    {
+      "name": "unique_event",
+      "keys": [
+        "title",
+        "start_date",
+        "end_date",
+        "notes",
+        "url",
+        "location",
+        "invitees",
+        "last_modified",
+        "calendar_name"
+      ],
+      "index_name": "calendar_event_unique_event_index",
+      "base_filter": null
+    }
+  ],
   "multitenancy": {
     "global": null,
-    "attribute": null,
-    "strategy": null
+    "strategy": null,
+    "attribute": null
   },
   "base_filter": null,
   "custom_indexes": [],

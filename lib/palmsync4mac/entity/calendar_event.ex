@@ -11,10 +11,26 @@ defmodule PalmSync4Mac.Entity.CalendarEvent do
     repo(PalmSync4Mac.Repo)
   end
 
+  identities do
+    identity(:unique_event, [
+      :title,
+      :start_date,
+      :end_date,
+      :notes,
+      :url,
+      :location,
+      :invitees,
+      :calendar_name
+    ])
+  end
+
   actions do
     defaults([:read, :destroy])
 
-    create(:create) do
+    create(:create_or_update) do
+      upsert?(true)
+      upsert_identity(:unique_event)
+
       accept([
         :source,
         :title,
@@ -26,7 +42,8 @@ defmodule PalmSync4Mac.Entity.CalendarEvent do
         :invitees,
         :last_modified,
         :calendar_name,
-        :deleted
+        :deleted,
+        :apple_event_id
       ])
     end
   end
@@ -108,6 +125,15 @@ defmodule PalmSync4Mac.Entity.CalendarEvent do
       )
 
       default(false)
+      public?(true)
+    end
+
+    attribute :apple_event_id, :string do
+      description(
+        "The Apple event uuid which is unique accross all calendars. If it's set it means that the event is synced with the Apple Calendar"
+      )
+
+      allow_nil?(true)
       public?(true)
     end
   end

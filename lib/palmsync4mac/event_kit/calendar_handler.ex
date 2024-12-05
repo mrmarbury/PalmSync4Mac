@@ -114,13 +114,13 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
   end
 
   defp normalize_response_data(data) do
-    normalized_events =
+    events_with_source =
       data
       |> Map.get("events")
       |> Enum.map(fn event -> Map.put(event, "source", :apple) end)
 
     data
-    |> Map.put("events", normalized_events)
+    |> Map.put("events", events_with_source)
     |> Map.delete("request_id")
   end
 end
