@@ -87,9 +87,14 @@ func getCalendarEvents(days: Int, calendar: String?, requestId: Int?) async {
     let eventList = events.map { event -> [String: Any] in
         return [
             "title": event.title ?? "Event",
-            "startDate": ISO8601DateFormatter().string(from: event.startDate),
-            "endDate": ISO8601DateFormatter().string(from: event.endDate),
-            "calendar": event.calendar.title
+            "start_date": ISO8601DateFormatter().string(from: event.startDate),
+            "end_date": ISO8601DateFormatter().string(from: event.endDate),
+            "calendar_name": event.calendar.title,
+            "invitees": event.attendees?.map { $0.url.absoluteString } ?? [],
+            "url": event.url?.absoluteString ?? "",
+            "location": event.location ?? "",
+            "notes": event.notes ?? ""
+            // we are not supporting attachments for now
         ]
     }
 

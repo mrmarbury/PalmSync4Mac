@@ -3,12 +3,12 @@
     {
       "default": "nil",
       "size": null,
-      "type": "uuid",
+      "type": "bigint",
       "source": "id",
       "references": null,
       "allow_nil?": false,
-      "primary_key?": true,
-      "generated?": false
+      "generated?": false,
+      "primary_key?": true
     },
     {
       "default": "nil",
@@ -17,18 +17,8 @@
       "source": "name",
       "references": null,
       "allow_nil?": false,
-      "primary_key?": false,
-      "generated?": false
-    },
-    {
-      "default": "nil",
-      "size": null,
-      "type": "bigint",
-      "source": "device_id",
-      "references": null,
-      "allow_nil?": false,
-      "primary_key?": false,
-      "generated?": false
+      "generated?": false,
+      "primary_key?": false
     },
     {
       "default": "nil",
@@ -37,21 +27,31 @@
       "source": "last_synced",
       "references": null,
       "allow_nil?": true,
-      "primary_key?": false,
-      "generated?": false
+      "generated?": false,
+      "primary_key?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "text",
+      "source": "last_sync_status",
+      "references": null,
+      "allow_nil?": true,
+      "generated?": false,
+      "primary_key?": false
     }
   ],
   "table": "palm",
-  "hash": "19845E46441A2097E73B761F20EF92C386427DDC5846A872CE472AFD89B969D6",
+  "hash": "64EDA70C76F69AD4BCA4680285A8B7852CC56DCFF54C322A5CE806267DE3808B",
   "repo": "Elixir.PalmSync4Mac.Repo",
   "identities": [],
-  "custom_indexes": [],
-  "base_filter": null,
-  "custom_statements": [],
   "multitenancy": {
     "global": null,
-    "strategy": null,
-    "attribute": null
+    "attribute": null,
+    "strategy": null
   },
+  "base_filter": null,
+  "custom_indexes": [],
+  "custom_statements": [],
   "has_create_action": true
 }

@@ -1,13 +1,13 @@
-defmodule PalmSync4Mac.Entity.Calendar do
+defmodule PalmSync4Mac.Entity.CalendarEvent do
   @moduledoc """
-  The Apple Calendar entity
+  Represents a calendar event.
   """
   use Ash.Resource,
     domain: PalmSync4Mac.Entity,
     data_layer: AshSqlite.DataLayer
 
   sqlite do
-    table("calendar")
+    table("calendar_event")
     repo(PalmSync4Mac.Repo)
   end
 
@@ -15,7 +15,19 @@ defmodule PalmSync4Mac.Entity.Calendar do
     defaults([:read, :destroy])
 
     create(:create) do
-      accept([:source, :title, :start_date, :end_date, :description, :location, :deleted])
+      accept([
+        :source,
+        :title,
+        :start_date,
+        :end_date,
+        :notes,
+        :url,
+        :location,
+        :invitees,
+        :last_modified,
+        :calendar_name,
+        :deleted
+      ])
     end
   end
 
@@ -46,8 +58,17 @@ defmodule PalmSync4Mac.Entity.Calendar do
       public?(true)
     end
 
-    attribute(:description, :string) do
-      description("The description of the event, e.g. what it is about")
+    attribute(:notes, :string) do
+      description(
+        "The description of the event or also notes associated with the event, e.g. what it is about."
+      )
+
+      allow_nil?(true)
+      public?(true)
+    end
+
+    attribute(:url, :string) do
+      description("The URL of the event as added in the EK event")
       allow_nil?(true)
       public?(true)
     end
@@ -59,7 +80,24 @@ defmodule PalmSync4Mac.Entity.Calendar do
     end
 
     attribute(:last_modified, :utc_datetime) do
-      description("The last time the event was modified")
+      description("The last time the event was modified. If not specified will be UTC now")
+      default(&DateTime.utc_now/0)
+      public?(true)
+    end
+
+    attribute(:calendar_name, :string) do
+      description("The name of the calendar the event belongs to")
+      allow_nil?(false)
+      public?(true)
+    end
+
+    attribute(:invitees, {:array, :string}) do
+      constraints(remove_nil_items?: true)
+
+      description(
+        "The list of invitees for the event. It's an array of emails in the form of 'mailto:em@il'"
+      )
+
       allow_nil?(true)
       public?(true)
     end

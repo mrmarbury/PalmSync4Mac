@@ -70,7 +70,9 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
          %{"request_id" => request_id} = response_data <- data,
          {from, timer_ref} <- Map.get(requests, request_id) do
       Process.cancel_timer(timer_ref)
-      GenServer.reply(from, {:ok, Map.delete(response_data, "request_id")})
+
+      normalized_response_data = normalize_response_data(response_data)
+      GenServer.reply(from, {:ok, normalized_response_data})
 
       new_requests = Map.delete(requests, request_id)
 
@@ -109,5 +111,16 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
         # No matching request; do nothing
         {:noreply, state}
     end
+  end
+
+  defp normalize_response_data(data) do
+    normalized_events =
+      data
+      |> Map.get("events")
+      |> Enum.map(fn event -> Map.put(event, "source", :apple) end)
+
+    data
+    |> Map.put("events", normalized_events)
+    |> Map.delete("request_id")
   end
 end
