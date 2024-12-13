@@ -25,7 +25,11 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
   @impl true
   def init(_opts) do
     port =
-      Port.open({:spawn, "./ports/ek_calendar_interface"}, [:binary, :exit_status, packet: 4])
+      Port.open({:spawn, "./ports/.build/release/ek_calendar_interface"}, [
+        :binary,
+        :exit_status,
+        packet: 4
+      ])
 
     state = %{
       port: port,

@@ -1,22 +1,20 @@
-import Foundation
 import EventKit
+import Foundation
 
 let store = EKEventStore()
 
 // Function to send messages with a 4-byte length prefix
-func sendMessage(_ message: String) {
+func sendMessage(_ message: String, to output: FileHandle = FileHandle.standardOutput) {
     guard let data = message.data(using: .utf8) else { return }
     var length = UInt32(data.count).bigEndian
     let lengthData = Data(bytes: &length, count: 4)
     let outputData = lengthData + data
-    FileHandle.standardOutput.write(outputData)
+    output.write(outputData)
 }
 
-func readMessage() -> [String: Any]? {
-    let stdin = FileHandle.standardInput
-
+func readMessage(from input: FileHandle = FileHandle.standardInput) -> [String: Any]? {
     // Read the 4-byte length header
-    let lengthData = stdin.readData(ofLength: 4)
+    let lengthData = input.readData(ofLength: 4)
     guard lengthData.count == 4 else {
         return nil
     }
@@ -24,7 +22,7 @@ func readMessage() -> [String: Any]? {
     let length = lengthData.withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
 
     // Read the message data
-    let messageData = stdin.readData(ofLength: Int(length))
+    let messageData = input.readData(ofLength: Int(length))
     guard messageData.count == length else {
         return nil
     }
@@ -37,10 +35,10 @@ func readMessage() -> [String: Any]? {
                 return json
             }
         } catch {
-            sendMessage("{\"error\": \"invalid_json\", \"details\": \"\(error.localizedDescription)\"}")
+            sendMessage("{\"error\": \"invalid_json\", \"details\": \"\(error.localizedDescription)\"}", to: FileHandle.standardError)
         }
     } else {
-        sendMessage("{\"error\": \"invalid_encoding\"}")
+        sendMessage("{\"error\": \"invalid_encoding\"}", to: FileHandle.standardError)
     }
     return nil
 }
@@ -63,7 +61,8 @@ func getCalendarEvents(days: Int, calendar: String?, requestId: Int?) async {
             return
         }
     } catch {
-        sendMessage("{\"error\": \"\(error.localizedDescription)\", \"request_id\": \(requestId ?? -1)}")
+        sendMessage(
+            "{\"error\": \"\(error.localizedDescription)\", \"request_id\": \(requestId ?? -1)}")
         return
     }
 
@@ -75,13 +74,14 @@ func getCalendarEvents(days: Int, calendar: String?, requestId: Int?) async {
 
     // Get the calendar object if specified
     let selectedCalendars = getSelectedCalendars(named: calendar, store: store)
-    
-    if let _ = calendar, selectedCalendars == nil {
+
+    if calendar != nil, selectedCalendars == nil {
         sendMessage("{\"error\": \"calendar_not_found\", \"request_id\": \(requestId ?? -1)}")
         return
     }
 
-    let predicate = store.predicateForEvents(withStart: startDate, end: endDate, calendars: selectedCalendars)
+    let predicate = store.predicateForEvents(
+        withStart: startDate, end: endDate, calendars: selectedCalendars)
     let events = store.events(matching: predicate)
 
     let eventList = events.map { event -> [String: Any] in
@@ -94,14 +94,14 @@ func getCalendarEvents(days: Int, calendar: String?, requestId: Int?) async {
             "url": event.url?.absoluteString ?? "",
             "location": event.location ?? "",
             "notes": event.notes ?? "",
-            "apple_event_id": event.eventIdentifier!
-            // we are not supporting attachments for now
+            "apple_event_id": event.eventIdentifier!,
+                // we are not supporting attachments for now
         ]
     }
 
     let responseDict: [String: Any] = [
         "events": eventList,
-        "request_id": requestId ?? -1
+        "request_id": requestId ?? -1,
     ]
 
     if let jsonData = try? JSONSerialization.data(withJSONObject: responseDict, options: []) {
@@ -111,22 +111,23 @@ func getCalendarEvents(days: Int, calendar: String?, requestId: Int?) async {
             sendMessage("{\"error\": \"json_encoding_failed\", \"request_id\": \(requestId ?? -1)}")
         }
     } else {
-        sendMessage("{\"error\": \"json_serialization_failed\", \"request_id\": \(requestId ?? -1)}")
+        sendMessage(
+            "{\"error\": \"json_serialization_failed\", \"request_id\": \(requestId ?? -1)}")
     }
 }
 
 func getSelectedCalendars(named calendarName: String?, store: EKEventStore) -> [EKCalendar]? {
     // Fetch all calendars
     let allCalendars = store.calendars(for: .event)
-    
+
     // If no calendar name is provided, return nil (indicating all calendars)
     guard let calendarName = calendarName else {
         return nil
     }
-    
+
     // Filter calendars by the specified name
     let selectedCalendars = allCalendars.filter { $0.title == calendarName }
-    
+
     // Return nil if no matching calendars are found
     return selectedCalendars.isEmpty ? nil : selectedCalendars
 }
@@ -138,13 +139,15 @@ func startMainLoop() {
                 let requestId = message["request_id"] as? Int
                 switch command {
                 case "get_events":
-                    let days = message["days"] as? Int ?? 13 // Default to 14 days if not specified
+                    let days = message["days"] as? Int ?? 13  // Default to 14 days if not specified
                     let calendar = message["calendar"] as? String ?? nil
                     Task {
-                        await getCalendarEvents(days: days, calendar: calendar, requestId: requestId)
+                        await getCalendarEvents(
+                            days: days, calendar: calendar, requestId: requestId)
                     }
                 default:
-                    sendMessage("{\"error\": \"unknown_command\", \"request_id\": \(requestId ?? -1)}")
+                    sendMessage(
+                        "{\"error\": \"unknown_command\", \"request_id\": \(requestId ?? -1)}")
                 }
             } else {
                 sendMessage("{\"error\": \"invalid_message_format\"}")
