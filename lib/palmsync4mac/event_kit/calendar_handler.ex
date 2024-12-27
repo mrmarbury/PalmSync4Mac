@@ -3,7 +3,6 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
   Handle access to EK Calendar events.
   """
   use GenServer
-
   require Logger
 
   def start_link(_opts) do
@@ -18,12 +17,15 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
   calendar is a string representing the calendar to fetch events from.
       If nil, all calendars are considered.
   """
+  @callback get_events(days :: integer, calendar :: String.t()) :: {:ok, [map]} | {:error, term}
   def get_events(days \\ 13, calendar \\ nil) do
     GenServer.call(__MODULE__, {:get_calendar_events, days, calendar})
   end
 
   @impl true
   def init(_opts) do
+    Logger.info("Starting EK Calendar Interface Swift Port")
+
     port =
       Port.open({:spawn, "./ports/.build/release/ek_calendar_interface"}, [
         :binary,
@@ -38,6 +40,12 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
     }
 
     {:ok, state}
+  end
+
+  @impl true
+  def terminate(_reason, %{port: port}) do
+    Logger.info("Terminating EK Calendar Interface Swift Port")
+    Port.close(port)
   end
 
   @impl true
