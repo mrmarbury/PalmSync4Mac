@@ -1,6 +1,6 @@
 defmodule PalmSync4Mac.Entity.CalendarEvent do
   @moduledoc """
-  Represents a calendar event.
+  Represents a calendar event in the Apple Calendar.
   """
   use Ash.Resource,
     domain: PalmSync4Mac.Entity,

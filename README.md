@@ -14,3 +14,12 @@ WARNING: DON'T USE YET! IT'S NOT DOING ANYTHING MEANINGFUL YET!
 - `mix compile`
 - `pushd ports && swift build -c release ; popd`
 - `iex -S mix`
+
+## Dev Notes
+
+### Fetch Apple Events and store them in the DB
+
+```elixir
+{:ok, data} = PalmSync4Mac.EventKit.CalendarHandler.get_events(0, "Calendar")
+Enum.each(data["events"], fn cal_date -> PalmSync4Mac.Entity.CalendarEvent |> Ash.Changeset.for_create(:create_or_update, cal_date) |> Ash.create! end)
+```

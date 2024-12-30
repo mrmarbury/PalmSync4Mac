@@ -8,4 +8,6 @@ config :palmsync4mac,
     calendar_write: "pilot-install-datebook"
   ]
 
+config :ash, :custom_types, palm_datetime: PalmSync4Mac.Type.PalmDatetime
+
 import_config "#{config_env()}.exs"
