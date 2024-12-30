@@ -3,7 +3,6 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
   Handle access to EK Calendar events.
   """
   use GenServer
-
   require Logger
 
   def start_link(_opts) do
@@ -15,15 +14,24 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
 
   `days` is an integer representing the number of
       days to fetch events for, starting from today. Where 0 means today only.
+  calendar is a string representing the calendar to fetch events from.
+      If nil, all calendars are considered.
   """
-  def get_events(days \\ 13) do
-    GenServer.call(__MODULE__, {:get_calendar_events, days})
+  @callback get_events(days :: integer, calendar :: String.t()) :: {:ok, [map]} | {:error, term}
+  def get_events(days \\ 13, calendar \\ nil) do
+    GenServer.call(__MODULE__, {:get_calendar_events, days, calendar})
   end
 
   @impl true
   def init(_opts) do
+    Logger.info("Starting EK Calendar Interface Swift Port")
+
     port =
-      Port.open({:spawn, "./ports/ek_calendar_interface"}, [:binary, :exit_status, packet: 4])
+      Port.open({:spawn, "./ports/.build/release/ek_calendar_interface"}, [
+        :binary,
+        :exit_status,
+        packet: 4
+      ])
 
     state = %{
       port: port,
@@ -35,8 +43,14 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
   end
 
   @impl true
+  def terminate(_reason, %{port: port}) do
+    Logger.info("Terminating EK Calendar Interface Swift Port")
+    Port.close(port)
+  end
+
+  @impl true
   def handle_call(
-        {:get_calendar_events, days},
+        {:get_calendar_events, days, calendar},
         from,
         %{port: port, requests: requests, request_id: request_id} = state
       ) do
@@ -45,6 +59,7 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
     command = %{
       "command" => "get_events",
       "days" => days,
+      "calendar" => calendar,
       "request_id" => new_request_id
     }
 
@@ -67,7 +82,9 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
          %{"request_id" => request_id} = response_data <- data,
          {from, timer_ref} <- Map.get(requests, request_id) do
       Process.cancel_timer(timer_ref)
-      GenServer.reply(from, {:ok, Map.delete(response_data, "request_id")})
+
+      normalized_response_data = normalize_response_data(response_data)
+      GenServer.reply(from, {:ok, normalized_response_data})
 
       new_requests = Map.delete(requests, request_id)
 
@@ -106,5 +123,16 @@ defmodule PalmSync4Mac.EventKit.CalendarHandler do
         # No matching request; do nothing
         {:noreply, state}
     end
+  end
+
+  defp normalize_response_data(data) do
+    events_with_source =
+      data
+      |> Map.get("events")
+      |> Enum.map(fn event -> Map.put(event, "source", :apple) end)
+
+    data
+    |> Map.put("events", events_with_source)
+    |> Map.delete("request_id")
   end
 end

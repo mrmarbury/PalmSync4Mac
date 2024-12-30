@@ -28,6 +28,8 @@ defmodule PalmSync4Mac.MixProject do
       {:jason, "~> 1.4.1"},
       # dev & test
       {:patch, "~> 0.12.0", only: [:test]},
+      {:mox, "~> 1.2.0", only: [:test], runtime: false},
+      {:ex_doc, "~> 0.36", only: [:test], runtime: false},
       # {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
