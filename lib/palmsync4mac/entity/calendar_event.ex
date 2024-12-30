@@ -12,16 +12,13 @@ defmodule PalmSync4Mac.Entity.CalendarEvent do
   end
 
   identities do
-    identity(:unique_event, [
-      :title,
-      :start_date,
-      :end_date,
-      :notes,
-      :url,
-      :location,
-      :invitees,
-      :calendar_name
-    ])
+    identity(
+      :unique_event,
+      [
+        :apple_event_id
+      ],
+      eager_check?: true
+    )
   end
 
   actions do
