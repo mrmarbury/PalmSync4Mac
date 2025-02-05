@@ -1,7 +1,28 @@
-defmodule Palmsync4mac.PalmStructures.PdbHeader do
-  use Ash.Resource, data_layer: :embedded
+defmodule PalmSync4Mac.PalmStructures.PdbHeader do
+  @moduledoc """
+  Default Header for Palm PDB files.
+  """
+
+  use Ash.Resource,
+    data_layer: :embedded
+
+  actions do
+    defaults([:read, :destroy])
+
+    create(:create) do
+      accept([
+        :name,
+        :version,
+        :creation_date,
+        :modification_date,
+        :last_backup_date
+      ])
+    end
+  end
 
   attributes do
+    uuid_primary_key(:id)
+
     attribute(:name, :string) do
       description(
         "A 32-byte long, null-terminated string containing the name of the database on the Palm Powered handheld. The name is restricted to 31 bytes in length, plus the terminator byte."
@@ -46,10 +67,5 @@ defmodule Palmsync4mac.PalmStructures.PdbHeader do
       allow_nil?(false)
       public?(true)
     end
-  end
-
-  relationships do
-    has_many(:date_book_entries, Palmsync4mac.PalmStructures.DateBookEntry)
-    has_one(:attributes, Palmsync4mac.PalmStructures.PdbAttributes)
   end
 end
