@@ -5,8 +5,7 @@ defmodule PalmSync4Mac.PalmStructures do
   use Ash.Domain
 
   resources do
-    resource(PalmSync4Mac.PalmStructures.PdbHeader)
-    resource(PalmSync4Mac.PalmStructures.DateBookEntry)
-    resource(PalmSync4Mac.PalmStructures.PdbAttributes)
+    # resource(PalmSync4Mac.PalmStructures.DateBookEntry)
+    # resource(PalmSync4Mac.PalmStructures.PdbAttributes)
   end
 end
