@@ -26,6 +26,7 @@ defmodule PalmSync4Mac.MixProject do
       {:ash_sqlite, "~> 0.1.3"},
       {:picosat_elixir, "~> 0.2"},
       {:jason, "~> 1.4.1"},
+      {:usb, "~> 0.2.1"},
       # dev & test
       {:patch, "~> 0.12.0", only: [:test]},
       {:mox, "~> 1.2.0", only: [:test], runtime: false},
