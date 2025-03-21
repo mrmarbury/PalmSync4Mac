@@ -27,6 +27,7 @@ defmodule PalmSync4Mac.MixProject do
       {:picosat_elixir, "~> 0.2"},
       {:jason, "~> 1.4.1"},
       {:usb, "0.2.1"},
+      {:simple_enum, "~> 0.1.0"},
       # dev & test
       {:patch, "~> 0.12.0", only: [:test]},
       {:mox, "~> 1.2.0", only: [:test], runtime: false},

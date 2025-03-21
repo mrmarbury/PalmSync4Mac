@@ -30,9 +30,11 @@ defmodule PalmSync4Mac.Comms.USB do
 
       {:ok, []} ->
         IO.puts("❌ No USB devices found.")
+        {:error, :no_devices}
 
       {:error, reason} ->
         IO.puts("❌ USB Error: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 
@@ -66,9 +68,11 @@ defmodule PalmSync4Mac.Comms.USB do
         IO.puts("📌 Bulk OUT endpoint: #{inspect(bulk_out)}")
 
         rx_wakeup(handle, bulk_in, bulk_out)
+        {:ok, handle, device}
 
       {:error, reason} ->
         IO.puts("❌ Failed to open USB device: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 
