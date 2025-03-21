@@ -37,4 +37,3 @@ defmodule PalmSync4Mac.Comms.Handshake do
     |> Map.get(:address)
   end
 end
-
