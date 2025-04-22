@@ -7,6 +7,7 @@ defmodule PalmSync4Mac.MixProject do
       version: "0.1.0",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
+      compilers: [:unifex, :bundlex] ++ Mix.compilers(),
       deps: deps()
     ]
   end
