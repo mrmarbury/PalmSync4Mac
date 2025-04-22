@@ -1,4 +1,7 @@
 defmodule PalmSync4Mac.Comms.USB do
+  @moduledoc """
+  For now does the initial comms handshake with the Palm device over USB.
+  """
   import Bitwise
   require Logger
 
