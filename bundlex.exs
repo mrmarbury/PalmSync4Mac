@@ -11,7 +11,7 @@ def natives(_platform) do
  [
    libpisock: [
      sources: ["libpisock.c"],
-     interface: [:nif],
+     interface: [:nif, :cnode],
      preprocessor: Unifex,
      includes: ["/opt/homebrew/include"],
      libs: ["pisock"],                         # <-- link to libpisock
