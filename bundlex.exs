@@ -3,7 +3,7 @@ use Bundlex.Project
 
 def project do
  [
-   natives: natives(Bundlex.platform())
+    natives: natives(Bundlex.get_target()),
  ]
 end
 
@@ -13,7 +13,9 @@ def natives(_platform) do
      sources: ["libpisock.c"],
      interface: [:nif],
      preprocessor: Unifex,
-     includes: ["/opt/homebrew/include"]
+     includes: ["/opt/homebrew/include"],
+     libs: ["pisock"],                         # <-- link to libpisock
+     lib_dirs: ["/opt/homebrew/lib"]           # <-- path to libpisock.dylib
    ]
  ]
 end
