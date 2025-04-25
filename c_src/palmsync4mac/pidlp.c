@@ -18,7 +18,7 @@
 #include <pi-socket.h>
 #include <pi-source.h>
 
-#include "libpisock.h"
+#include "pidlp.h"
 
 /*pilot-connect*/
 UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port) {
@@ -245,6 +245,101 @@ UNIFEX_TERM read_sysinfo(UnifexEnv *env, int client_sd) {
     palm_info.max_rec_size = (uint64_t)sys_info.maxRecSize;
 
     res_term = read_sysinfo_result_ok(env, client_sd, palm_info);
+  }
+  return res_term;
+}
+
+/*
+ * Retireves the time from the Palm Device and returns the correct unix time in
+ * seconds
+ */
+UNIFEX_TERM get_sys_date_time(UnifexEnv *env, int client_sd) {
+  UNIFEX_TERM res_term;
+  time_t fetched_time;
+  uint64_t palm_date_time;
+
+  int result = dlp_GetSysDateTime(client_sd, &fetched_time);
+  if (result < 0) {
+    res_term = get_sys_date_time_result_error(env, client_sd, result,
+                                              "Unable to get system date");
+  } else {
+    palm_date_time = (uint64_t)fetched_time;
+    res_term = get_sys_date_time_result_ok(env, client_sd, palm_date_time);
+  }
+  return res_term;
+}
+
+/*
+ * Sets the given unix time to the palm device.
+ * There is also no need to convert anything since unix time
+ * is converted to palm time automagically.
+ */
+UNIFEX_TERM set_sys_date_time(UnifexEnv *env, int client_sd,
+                              uint64_t palm_date_time) {
+  time_t t = (time_t)palm_date_time;
+  UNIFEX_TERM res_term;
+  int result = dlp_SetSysDateTime(client_sd, t);
+
+  if (result < 0) {
+    res_term = set_sys_date_time_result_error(env, client_sd, result,
+                                              "Unable to set system date");
+  } else {
+    res_term = set_sys_date_time_result_ok(env, client_sd);
+  }
+  return res_term;
+}
+
+UNIFEX_TERM read_user_info(UnifexEnv *env, int client_sd) {
+  UNIFEX_TERM res_term;
+  struct PilotUser user_info;
+  struct pilot_user_t pilot_user;
+
+  int result = dlp_ReadUserInfo(client_sd, &user_info);
+  if (result < 0) {
+    res_term = read_user_info_result_error(env, client_sd, result,
+                                           "Unable to get user info");
+  } else {
+    pilot_user.password_length = (uint64_t)user_info.passwordLength;
+    pilot_user.username = strdup(user_info.username);
+    pilot_user.password = strndup(user_info.password, user_info.passwordLength);
+    pilot_user.user_id = (uint64_t)user_info.userID;
+    pilot_user.viewer_id = (uint64_t)user_info.viewerID;
+    pilot_user.last_sync_pc = (uint64_t)user_info.lastSyncPC;
+    pilot_user.successful_sync_date = (uint64_t)user_info.successfulSyncDate;
+    pilot_user.last_sync_date = (uint64_t)user_info.lastSyncDate;
+
+    res_term = read_user_info_result_ok(env, client_sd, pilot_user);
+  }
+  return res_term;
+}
+
+UNIFEX_TERM write_user_info(UnifexEnv *env, int client_sd,
+                            struct pilot_user_t pilot_user) {
+  UNIFEX_TERM res_term;
+  struct PilotUser user_info;
+  user_info.passwordLength = (size_t)pilot_user.password_length;
+  user_info.userID = (unsigned long)pilot_user.user_id;
+  user_info.viewerID = (unsigned long)pilot_user.viewer_id;
+  user_info.lastSyncPC = (unsigned long)pilot_user.last_sync_pc;
+  user_info.successfulSyncDate = (time_t)pilot_user.successful_sync_date;
+  user_info.lastSyncDate = (time_t)pilot_user.last_sync_date;
+
+  strncpy(user_info.username, pilot_user.username,
+          sizeof(user_info.username) - 1);
+  user_info.username[sizeof(user_info.username) - 1] =
+      '\0'; // Always null-terminate
+
+  strncpy(user_info.password, pilot_user.password,
+          sizeof(user_info.password) - 1);
+  user_info.password[sizeof(user_info.password) - 1] =
+      '\0'; // Always null-terminate
+
+  int result = dlp_WriteUserInfo(client_sd, &user_info);
+  if (result < 0) {
+    res_term = write_user_info_result_error(env, client_sd, result,
+                                            "Unable to set user info");
+  } else {
+    res_term = write_user_info_result_ok(env, client_sd);
   }
   return res_term;
 }

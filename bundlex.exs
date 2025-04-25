@@ -9,14 +9,14 @@ end
 
 def natives(_platform) do
  [
-   libpisock: [
-     sources: ["libpisock.c"],
-     interface: [:nif, :cnode],
+   pidlp: [
+     sources: ["pidlp.c"],
+     interface: [:nif],
      preprocessor: Unifex,
      includes: ["/opt/homebrew/include"],
      libs: ["pisock"],                         # <-- link to libpisock
      lib_dirs: ["/opt/homebrew/lib"]           # <-- path to libpisock.dylib
-   ]
+   ],
  ]
 end
 end
