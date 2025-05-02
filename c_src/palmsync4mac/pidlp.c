@@ -251,6 +251,11 @@ UNIFEX_TERM open_db(UnifexEnv *env, int client_sd, int cardno, int mode,
   return res_term;
 }
 
+UNIFEX_TERM close_db(UnifexEnv *env, int client_sd, int dbhandle) {
+  dlp_CloseDB(client_sd, dbhandle);
+  return close_db_result_ok(env, client_sd);
+}
+
 UNIFEX_TERM read_sysinfo(UnifexEnv *env, int client_sd) {
   UNIFEX_TERM res_term;
   struct SysInfo sys_info;
