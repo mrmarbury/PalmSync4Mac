@@ -53,14 +53,14 @@ module PalmSync4mac.Comms.Pidlp
     :dom_last_fri | :dom_last_sat
 
   type appointment :: %DatebookAppointment {
-    event: int,               # timeless event?
-    begin: timehtime,
-    end: timehtime,
-    alarm: int,
-    alarmAdvance: int,
-    alarmAdvanceUnits: int,
-    repeat_type: repeat_type,
-    repeat_forevery: int,
+    event: bool,               # timeless event?
+    begin: timehtime,          # start time
+    end: timehtime,            # end time
+    alarm: bool,               # should this event have an alarm?
+    alarmAdvance: int,         # how far in advance should the alarm go off?
+    alarmAdvanceUnits: int,    # what units should the advance be in?
+    repeat_type: repeat_type,  
+    repeat_forevery: bool,
     repeat_end: timehtime,
     repeat_day_of_Month: day_of_month_type,
     repeat_days: [int], # use "[1, 0, 0, 1, 0, 0, 1]" with 1 to enable a weekday [Sun, Mon, Tue, Wen, Thu, Fri, Sat]
@@ -82,6 +82,8 @@ module PalmSync4mac.Comms.Pidlp
   spec open_db(client_sd :: int, card_no :: int, mode :: int, dbname :: string)
     :: {:ok :: label, client_sd :: int, db_handle :: int}
         | {:error :: label, client_sd :: int, result :: int, message :: string}
+
+  spec close_db(client_sd :: int, db_handle :: int) :: {:ok :: label, client_sd :: int}
 
   spec read_sysinfo(client_sd :: int) :: {:ok :: label, client_sd :: int, sys_info :: sys_info}
     | {:error :: label, client_sd :: int, result :: int, message :: string}
