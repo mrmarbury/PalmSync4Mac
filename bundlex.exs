@@ -1,4 +1,5 @@
 defmodule PalmSync4Mac.BundlexProject do
+@moduledoc false
 use Bundlex.Project
 
 def project do

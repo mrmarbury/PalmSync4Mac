@@ -12,6 +12,7 @@
 
 #include <stdarg.h>
 
+#include <pi-datebook.h>
 #include <pi-dlp.h>
 #include <pi-file.h>
 #include <pi-memo.h>
@@ -223,6 +224,33 @@ UNIFEX_TERM pilot_disconnect(UnifexEnv *env, int client_sd, int parent_sd) {
   return pilot_disconnect_result_ok(env, client_sd, parent_sd);
 }
 
+UNIFEX_TERM open_conduit(UnifexEnv *env, int client_sd) {
+  UNIFEX_TERM res_term;
+  int result = dlp_OpenConduit(client_sd);
+  if (result < 0) {
+    res_term = open_conduit_result_error(env, client_sd, result,
+                                         "Unable to open conduit");
+  } else {
+    res_term = open_conduit_result_ok(env, client_sd, result);
+  }
+  return res_term;
+}
+
+UNIFEX_TERM open_db(UnifexEnv *env, int client_sd, int cardno, int mode,
+                    char *dbname) {
+  UNIFEX_TERM res_term;
+  int db_handle;
+
+  int result = dlp_OpenDB(client_sd, cardno, mode, dbname, &db_handle);
+  if (result < 0) {
+    res_term =
+        open_db_result_error(env, client_sd, result, "Unable to open database");
+  } else {
+    res_term = open_db_result_ok(env, client_sd, db_handle);
+  }
+  return res_term;
+}
+
 UNIFEX_TERM read_sysinfo(UnifexEnv *env, int client_sd) {
   UNIFEX_TERM res_term;
   struct SysInfo sys_info;
@@ -250,8 +278,8 @@ UNIFEX_TERM read_sysinfo(UnifexEnv *env, int client_sd) {
 }
 
 /*
- * Retireves the time from the Palm Device and returns the correct unix time in
- * seconds
+ * Retireves the time from the Palm Device and returns the correct unix time
+ * in seconds
  */
 UNIFEX_TERM get_sys_date_time(UnifexEnv *env, int client_sd) {
   UNIFEX_TERM res_term;
@@ -342,4 +370,29 @@ UNIFEX_TERM write_user_info(UnifexEnv *env, int client_sd,
     res_term = write_user_info_result_ok(env, client_sd);
   }
   return res_term;
+}
+
+UNIFEX_TERM write_record(UnifexEnv *env, int client_sd, int dbhandle,
+                         appointment appointment) {
+  UNIFEX_TERM res_term;
+  pi_buffer_t *buf = pi_buffer_new(0xffff);
+
+  int ok = pack_Appointment(&appointment, buf, DATEBOOK_TYPE_V1);
+  if (!ok) {
+    return write_record_result_error(env, client_sd, ok,
+                                     "Failed to pack appointment");
+  }
+
+  recordid_t rec_id = 0;
+  int result = dlp_WriteRecord(client_sd, dbhandle, 0, 0, 0, buf->data,
+                               buf->used, &rec_id);
+
+  pi_buffer_free(buf);
+
+  if (result < 0) {
+    return write_record_result_error(env, client_sd, result,
+                                     "dlp_WriteRecord failed");
+  }
+
+  return write_record_result_ok(env, rec_id);
 }
