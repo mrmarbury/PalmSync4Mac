@@ -1,4 +1,4 @@
-defmodule PalmSync4mac.Comms.Pidlp do
+defmodule PalmSync4Mac.Comms.Pidlp do
   @moduledoc """
   Implemntation of the PiDlp functions for Palm devices.
   """

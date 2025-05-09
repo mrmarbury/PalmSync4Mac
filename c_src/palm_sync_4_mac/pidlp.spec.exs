@@ -1,4 +1,4 @@
-module PalmSync4mac.Comms.Pidlp
+module PalmSync4Mac.Comms.Pidlp
 
   interface [NIF]
 
@@ -59,7 +59,7 @@ module PalmSync4mac.Comms.Pidlp
     alarm: bool,               # should this event have an alarm?
     alarmAdvance: int,         # how far in advance should the alarm go off?
     alarmAdvanceUnits: int,    # what units should the advance be in?
-    repeat_type: repeat_type,  
+    repeat_type: repeat_type,
     repeat_forevery: bool,
     repeat_end: timehtime,
     repeat_day_of_Month: day_of_month_type,
@@ -84,6 +84,9 @@ module PalmSync4mac.Comms.Pidlp
         | {:error :: label, client_sd :: int, result :: int, message :: string}
 
   spec close_db(client_sd :: int, db_handle :: int) :: {:ok :: label, client_sd :: int}
+
+  spec end_of_sync(client_sd :: int, status :: int) :: {:ok :: label, client_sd :: int, result :: int}
+    | {:error :: label, client_sd :: int, result :: int}
 
   spec read_sysinfo(client_sd :: int) :: {:ok :: label, client_sd :: int, sys_info :: sys_info}
     | {:error :: label, client_sd :: int, result :: int, message :: string}

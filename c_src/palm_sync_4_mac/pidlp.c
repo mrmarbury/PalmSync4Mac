@@ -256,6 +256,17 @@ UNIFEX_TERM close_db(UnifexEnv *env, int client_sd, int dbhandle) {
   return close_db_result_ok(env, client_sd);
 }
 
+UNIFEX_TERM end_of_sync(UnifexEnv *env, int client_sd, int status) {
+  UNIFEX_TERM res_term;
+  int result = dlp_EndOfSync(client_sd, status);
+  if (result < 0) {
+    res_term = end_of_sync_result_error(env, client_sd, result);
+  } else {
+    res_term = end_of_sync_result_ok(env, client_sd, result);
+  }
+  return res_term;
+}
+
 UNIFEX_TERM read_sysinfo(UnifexEnv *env, int client_sd) {
   UNIFEX_TERM res_term;
   struct SysInfo sys_info;
