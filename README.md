@@ -22,7 +22,7 @@ WARNING: DON'T USE YET! IT'S NOT DOING ANYTHING MEANINGFUL YET!
 
 Sometimes this might be needed to get new dependencies right:
 
-1. mix deps.clean --install
+1. mix deps.clean --all
 1. mix deps.get
 1. mix deps.compile
 

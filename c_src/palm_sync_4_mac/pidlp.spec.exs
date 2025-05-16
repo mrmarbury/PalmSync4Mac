@@ -27,18 +27,6 @@ module PalmSync4Mac.Comms.Pidlp
     max_rec_size: uint64         # unsigned long
   }
 
-  type timehtime :: %TimeHTime {
-    sec: int,
-    min: int,
-    hour: int,
-    mday: int,
-    mon: int,
-    year: int,
-    wday: int,
-    yday: int,
-    isdst: int
-  }
-
   type repeat_type :: :none | :daily | :weekly | :monthly_by_day | :monthly_by_date | :yearly
   type day_of_month_type ::
     :dom_1st_sun | :dom_1st_mon | :dom_1st_tue | :dom_1st_wen | :dom_1st_thu |
@@ -54,19 +42,19 @@ module PalmSync4Mac.Comms.Pidlp
 
   type appointment :: %DatebookAppointment {
     event: bool,               # timeless event?
-    begin: timehtime,          # start time
-    end: timehtime,            # end time
+    begin: uint64,          # start time
+    end: uint64,            # end time
     alarm: bool,               # should this event have an alarm?
     alarmAdvance: int,         # how far in advance should the alarm go off?
     alarmAdvanceUnits: int,    # what units should the advance be in?
     repeat_type: repeat_type,
     repeat_forevery: bool,
-    repeat_end: timehtime,
+    repeat_end: uint64,
     repeat_day_of_Month: day_of_month_type,
     repeat_days: [int], # use "[1, 0, 0, 1, 0, 0, 1]" with 1 to enable a weekday [Sun, Mon, Tue, Wen, Thu, Fri, Sat]
     repeat_weekstart: int, # what day did the user decide starts the day
     exceptions_count: int, # how many repetitions to ignore
-    exceptions_actual: [timehtime],
+    exceptions_actual: [uint64],
     description: string,
     note: string
   }

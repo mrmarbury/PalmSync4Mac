@@ -3,6 +3,8 @@ defmodule PalmSync4Mac.PilotLink.DatebookHandler do
 
   alias PalmSync4Mac.Comms.Pidlp
 
+  require Logger
+
   defmodule DatebookAppointment do
     defstruct [
       :event,
@@ -24,55 +26,17 @@ defmodule PalmSync4Mac.PilotLink.DatebookHandler do
     ]
   end
 
-  defmodule TimeHTime do
-    defstruct [
-      :sec,
-      :min,
-      :hour,
-      :mday,
-      :mon,
-      :year,
-      :wday,
-      :yday,
-      :isdst
-    ]
-  end
-
   def do_sync do
-    begin_opts = [
-      sec: 0,
-      min: 0,
-      hour: 12,
-      mday: 10,
-      mon: 5,
-      year: 2025,
-      wday: 0,
-      yday: 0,
-      isdst: 0
-    ]
-
-    end_opts = [
-      sec: 0,
-      min: 0,
-      hour: 13,
-      mday: 10,
-      mon: 5,
-      year: 2025,
-      wday: 0,
-      yday: 0,
-      isdst: 0
-    ]
-
     date = [
       event: true,
-      begin: struct(TimeHTime, begin_opts),
-      end: struct(TimeHTime, end_opts),
+      begin: 1_715_705_571,
+      end: 1_715_709_171,
       alarm: false,
       alarmAdvanceUnits: 0,
       alarmAdvance: 0,
       repeat_type: :none,
       repeat_forevery: false,
-      repeat_end: struct(TimeHTime, end_opts),
+      repeat_end: 1_715_709_171,
       repeat_day_of_Month: :dom_1st_sun,
       repeat_days: [0, 0, 0, 0, 0, 0, 0],
       repeat_weekstart: 0,
@@ -87,7 +51,9 @@ defmodule PalmSync4Mac.PilotLink.DatebookHandler do
 
   @spec sync_datebook_appointment(Pidlp.DatebookAppointment.t()) :: :ok
   def sync_datebook_appointment(datebook_appointment) do
+    Logger.info("connecting")
     {:ok, client_sd, parent_sd} = Pidlp.pilot_connect("usb:")
+    Logger.info("opening conduit")
     {:ok, _client_sd, _result} = Pidlp.open_conduit(client_sd)
     # {:ok, _client_sd, user_info} = PiDlp.read_user_info(client_sd)
     {:ok, _client_sd, db_handle} = Pidlp.open_db(client_sd, 0, 0x80, "DatebookDB")
