@@ -2,8 +2,6 @@ module PalmSync4Mac.Comms.Pidlp
 
   interface [NIF]
 
-  type datebook_type :: :v1
-
   type pilot_user :: %PilotUser {
     password_length: uint64, # size_t -> unsigned long
   	username: string, # char
@@ -27,7 +25,21 @@ module PalmSync4Mac.Comms.Pidlp
     max_rec_size: uint64         # unsigned long
   }
 
-  type repeat_type :: :none | :daily | :weekly | :monthly_by_day | :monthly_by_date | :yearly
+  # tm is defined in time.h
+  type timehtm :: %TM {
+    tm_sec: int,
+    tm_min: int,
+    tm_hour: int,
+    tm_mday: int,
+    tm_mon: int,
+    tm_year: int,
+    tm_wday: int,
+    tm_yday: int,
+    tm_isdst: int
+  }
+
+  type repeat_type :: :repeatNone | :repeatDaily | :repeatWeekly |
+                      :repeatMonthlyByDay | :repeatMonthlyByDate | :repeatYearly
   type day_of_month_type ::
     :dom_1st_sun | :dom_1st_mon | :dom_1st_tue | :dom_1st_wen | :dom_1st_thu |
     :dom_1st_fri | :dom_1st_sat |
@@ -42,19 +54,20 @@ module PalmSync4Mac.Comms.Pidlp
 
   type appointment :: %DatebookAppointment {
     event: bool,               # timeless event?
-    begin: uint64,          # start time
-    end: uint64,            # end time
+    begin: timehtm,          # start time
+    end: timehtm,            # end time
     alarm: bool,               # should this event have an alarm?
-    alarmAdvance: int,         # how far in advance should the alarm go off?
-    alarmAdvanceUnits: int,    # what units should the advance be in?
+    alarm_advance: int,         # how far in advance should the alarm go off?
+    alarm_advance_units: int,    # what units should the advance be in?
     repeat_type: repeat_type,
-    repeat_forevery: bool,
-    repeat_end: uint64,
-    repeat_day_of_Month: day_of_month_type,
+    repeat_forever: bool,
+    repeat_end: timehtm,
+    repeat_frequency: int,      # how many times to repeat
+    repeat_day: day_of_month_type,
     repeat_days: [int], # use "[1, 0, 0, 1, 0, 0, 1]" with 1 to enable a weekday [Sun, Mon, Tue, Wen, Thu, Fri, Sat]
     repeat_weekstart: int, # what day did the user decide starts the day
     exceptions_count: int, # how many repetitions to ignore
-    exceptions_actual: [uint64],
+    exceptions_actual: [timehtm],
     description: string,
     note: string
   }
@@ -91,6 +104,6 @@ module PalmSync4Mac.Comms.Pidlp
   spec write_user_info(client_sd :: int, user_info :: pilot_user) :: {:ok :: label, client_sd :: int}
     | {:error :: label, client_sd :: int, result :: int, message :: string}
 
-  spec write_record(client_sd :: int, db_handle :: int, record_data :: appointment)
+  spec write_datebook_record(client_sd :: int, db_handle :: int, record_data :: appointment)
     :: {:ok :: label, client_sd :: int}
         | {:error :: label, client_sd :: int, result :: int, message :: string}

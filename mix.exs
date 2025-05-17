@@ -30,6 +30,7 @@ defmodule PalmSync4Mac.MixProject do
       {:usb, "0.2.1"},
       {:simple_enum, "~> 0.1.0"},
       {:unifex, "~> 1.2"},
+      {:timex, "~> 3.7"},
       # dev & test
       {:patch, "~> 0.12.0", only: [:test]},
       {:mox, "~> 1.2.0", only: [:test], runtime: false},
