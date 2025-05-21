@@ -7,34 +7,28 @@ defmodule PalmSync4Mac.Comms.Pidlp.TM do
   * `tm_year` is stored as **years since 1900**.
   * All other fields match their C counterparts one‑for‑one.
   """
+  use TypedStruct
 
-  @type t :: %__MODULE__{
-          tm_sec: integer(),
-          tm_min: integer(),
-          tm_hour: integer(),
-          tm_mday: integer(),
-          tm_mon: integer(),
-          tm_year: integer(),
-          tm_wday: integer(),
-          tm_yday: integer(),
-          tm_isdst: integer()
-        }
-  # 0-60   (allow leap second)
-  defstruct tm_sec: 0,
-            # 0-59
-            tm_min: 0,
-            # 0-23
-            tm_hour: 0,
-            # 1-31
-            tm_mday: 1,
-            # 0-11
-            tm_mon: 0,
-            # years since 1900
-            tm_year: 0,
-            # 0-6  (Sun = 0)
-            tm_wday: 0,
-            # 0-365
-            tm_yday: 0,
-            # 1 = DST, 0 = no DST, -1 = unknown
-            tm_isdst: 0
+  typedstruct do
+    plugin(TypedStructLens)
+
+    # 0-60   (allow leap second)
+    field(:tm_sec, non_neg_integer(), default: 0)
+    # 0-59
+    field(:tm_min, non_neg_integer(), default: 0)
+    # 0-23
+    field(:tm_hour, non_neg_integer(), default: 0)
+    # 1-31
+    field(:tm_mday, non_neg_integer(), default: 1)
+    # 0-11
+    field(:tm_mon, non_neg_integer(), default: 1)
+    # years since 1900
+    field(:tm_year, non_neg_integer(), default: 0)
+    # 0-6 (sun = 0)
+    field(:tm_wday, non_neg_integer(), default: 0)
+    # 0-365
+    field(:tm_yday, non_neg_integer(), default: 0)
+    # 1 = DST, 0 = no DST, -1 = unknown
+    field(:tm_isdst, non_neg_integer(), default: 0)
+  end
 end

@@ -32,10 +32,13 @@ defmodule PalmSync4Mac.MixProject do
       {:unifex, "~> 1.2"},
       {:timex, "~> 3.7"},
       {:typedstruct, "~> 0.5"},
+      {:enum_type, "~> 1.1.0"},
+      {:typed_struct_lens, "~> 0.1", runtime: false},
+      {:typed_struct_nimble_options, "~> 0.1"},
       # dev & test
       {:patch, "~> 0.12.0", only: [:test]},
       {:mox, "~> 1.2.0", only: [:test], runtime: false},
-      {:ex_doc, "~> 0.36", only: [:test], runtime: false},
+      {:ex_doc, "~> 0.38", only: [:test], runtime: false},
       # {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]

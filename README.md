@@ -13,6 +13,7 @@ WARNING: DON'T USE YET! IT'S NOT DOING ANYTHING MEANINGFUL YET!
 - `mix ash_sqlite.create`
 - `mix ash_sqlite.migrate`
 - `mix compile`
+- `mix docs` (if you want dev docs)
 - `pushd ports && swift build -c release ; popd`
 - `iex -S mix`
 
