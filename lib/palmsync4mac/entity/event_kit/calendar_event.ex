@@ -1,9 +1,9 @@
-defmodule PalmSync4Mac.Entity.CalendarEvent do
+defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
   @moduledoc """
   Represents a calendar event in the Apple Calendar.
   """
   use Ash.Resource,
-    domain: PalmSync4Mac.Entity,
+    domain: PalmSync4Mac.Entity.EventKit,
     data_layer: AshSqlite.DataLayer
 
   sqlite do
@@ -94,9 +94,15 @@ defmodule PalmSync4Mac.Entity.CalendarEvent do
     end
 
     attribute(:last_modified, :utc_datetime) do
-      description("The last time the event was modified. If not specified will be UTC now")
+      description(
+        "The last time the event was modified. Will be UTC now every time the entry is updated/created"
+      )
+
+      writable?(false)
       default(&DateTime.utc_now/0)
-      public?(true)
+      update_default(&DateTime.utc_now/0)
+      match_other_defaults?(true)
+      allow_nil?(false)
     end
 
     attribute(:calendar_name, :string) do
@@ -127,10 +133,18 @@ defmodule PalmSync4Mac.Entity.CalendarEvent do
 
     attribute :apple_event_id, :string do
       description(
-        "The Apple event uuid which is unique accross all calendars. If it's set it means that the event is synced with the Apple Calendar"
+        "The Apple event uuid which is unique across all calendars. If it's set it means that the event is synced with the Apple Calendar"
       )
 
       allow_nil?(true)
+      public?(true)
+    end
+
+    attribute :version, :integer do
+      description("Version of the calendar event. Automatically incremented on each update")
+      allow_nil?(false)
+      default(0)
+      update_default(&(&1 + 1))
       public?(true)
     end
   end

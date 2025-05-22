@@ -1,9 +1,9 @@
-defmodule PalmSync4Mac.Device.Palm do
+defmodule PalmSync4Mac.Entity.Device.Palm do
   @moduledoc """
   Represents a Palm device that can be synced with a Mac
   """
   use Ash.Resource,
-    domain: PalmSync4Mac.Device,
+    domain: PalmSync4Mac.Entity.Device,
     data_layer: AshSqlite.DataLayer
 
   sqlite do
@@ -28,15 +28,10 @@ defmodule PalmSync4Mac.Device.Palm do
   end
 
   attributes do
-    attribute :id, :integer do
-      description("Unique Palm device ID encoded as serial_number in system_profiler USB data")
-      allow_nil?(false)
-      primary_key?(true)
-      public?(true)
-    end
+    uuid_primary_key(:id)
 
     attribute :name, :string do
-      description("Aka HotSync Name of the Palm device")
+      description("Aka HotSync Name/id of the Palm device")
       allow_nil?(false)
       public?(true)
     end

@@ -14,7 +14,7 @@ defmodule PalmSync4Mac.Comms.Pidlp do
     value(Yearly, 5)
   end
 
-  defenum AlarmUnit, :integer do
+  defenum AlarmAdvanceUnit, :integer do
     value(Minutes, 0)
     value(Hours, 1)
     value(Days, 2)

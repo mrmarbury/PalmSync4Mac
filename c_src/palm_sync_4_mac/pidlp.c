@@ -2,6 +2,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,6 +21,21 @@
 #include <pi-source.h>
 
 #include "pidlp.h"
+
+bool is_blank(const char *str) {
+  if (str == NULL)
+    return true;
+
+  // Skip leading whitespace
+  while (*str != '\0') {
+    if (!isspace((unsigned char)*str)) {
+      return false;
+    }
+    str++;
+  }
+
+  return true;
+}
 
 /* FIXME: this might create errors when t is null */
 struct tm timehtm_to_tm(timehtm t) {
@@ -53,7 +69,7 @@ struct tm *timehtm_list_to_tm_list(timehtm *src, unsigned int count) {
   return result;
 }
 
-enum repeatTypes map_repeat_type(enum RepeatType_t val) {
+/* enum repeatTypes map_repeat_type(enum RepeatType_t val) {
   switch (val) {
   case REPEAT_TYPE_REPEATNONE:
     return repeatNone;
@@ -152,7 +168,7 @@ DayOfMonthType map_day_of_month(enum DayOfMonthType_t val) {
   default:
     return dom1stSun; // or handle error
   }
-}
+} */
 /*pilot-connect*/
 UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port) {
   UNIFEX_TERM res_term;
@@ -532,11 +548,13 @@ UNIFEX_TERM write_datebook_record(UnifexEnv *env, int client_sd, int dbhandle,
   pilot_appointment.alarm = (int)appointment.alarm;
   pilot_appointment.advance = (int)appointment.alarm_advance;
   pilot_appointment.advanceUnits = (int)appointment.alarm_advance_units;
-  pilot_appointment.repeatType = map_repeat_type(appointment.repeat_type);
+  /* pilot_appointment.repeatType = map_repeat_type(appointment.repeat_type); */
+  pilot_appointment.repeatType = appointment.repeat_type;
   pilot_appointment.repeatEnd = timehtm_to_tm(appointment.repeat_end);
   pilot_appointment.repeatFrequency = (int)appointment.repeat_frequency;
   pilot_appointment.repeatForever = (int)appointment.repeat_forever;
-  pilot_appointment.repeatDay = map_day_of_month(appointment.repeat_day);
+  /* pilot_appointment.repeatDay = map_day_of_month(appointment.repeat_day); */
+  pilot_appointment.repeatDay = appointment.repeat_day;
 
   for (int i = 0; i < 7; i++) {
     pilot_appointment.repeatDays[i] =
@@ -549,7 +567,7 @@ UNIFEX_TERM write_datebook_record(UnifexEnv *env, int client_sd, int dbhandle,
       appointment.exceptions_actual, appointment.exceptions_count);
   pilot_appointment.description = strdup(appointment.description);
   pilot_appointment.note =
-      appointment.note ? strdup(appointment.note) : strdup("");
+      is_blank(appointment.note) ? NULL : strdup(appointment.note);
 
   printf("\n--- BEGIN PACK DEBUG ---\n");
   printf("event: %d\n", pilot_appointment.event);
@@ -614,5 +632,5 @@ UNIFEX_TERM write_datebook_record(UnifexEnv *env, int client_sd, int dbhandle,
                                               "dlp_WriteRecord failed");
   }
 
-  return write_datebook_record_result_ok(env, rec_id);
+  return write_datebook_record_result_ok(env, client_sd, result);
 }

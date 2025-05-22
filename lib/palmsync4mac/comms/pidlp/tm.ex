@@ -19,11 +19,11 @@ defmodule PalmSync4Mac.Comms.Pidlp.TM do
     # 0-23
     field(:tm_hour, non_neg_integer(), default: 0)
     # 1-31
-    field(:tm_mday, non_neg_integer(), default: 1)
+    field(:tm_mday, non_neg_integer(), enforce: true)
     # 0-11
-    field(:tm_mon, non_neg_integer(), default: 1)
+    field(:tm_mon, non_neg_integer(), enforce: true)
     # years since 1900
-    field(:tm_year, non_neg_integer(), default: 0)
+    field(:tm_year, non_neg_integer(), enforce: true)
     # 0-6 (sun = 0)
     field(:tm_wday, non_neg_integer(), default: 0)
     # 0-365

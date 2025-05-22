@@ -2,6 +2,7 @@ defmodule PalmSync4Mac.PilotLink.DatebookHandler do
   @moduledoc false
 
   require Logger
+  import Bitwise
 
   alias PalmSync4Mac.Comms.Pidlp
   alias PalmSync4Mac.Utils.TMTime
@@ -9,24 +10,13 @@ defmodule PalmSync4Mac.PilotLink.DatebookHandler do
   alias PalmSync4Mac.Comms.Pidlp.DatebookAppointment
   alias PalmSync4Mac.Comms.Pidlp.TM
 
+  alias PalmSync4Mac.Dlp.OpenDbMode
+
   def do_sync do
     date = [
       event: false,
-      description: "Test Date",
-      note: "",
-      repeat_type: :repeatNone,
-      repeat_day: :dom_1st_sun,
-      repeat_days: [0, 0, 0, 0, 0, 0, 0],
-      exceptions_actual: [],
-      exceptions_count: 0,
-      # will be ignored if event: true
-      begin: %TM{},
-      end: %TM{},
-      repeat_end: %TM{}
-      # event: false,
-      # begin: TMTime.unix_to_tm(DateTime.utc_now() |> DateTime.to_unix()),
-      # end: TMTime.unix_to_tm(DateTime.utc_now() |> DateTime.to_unix()),
-      # description: "Test Date"
+      description: "Untimed Test Date No Note",
+      note: "Some Note"
     ]
 
     dateboot_entry = struct(DatebookAppointment, date)
@@ -35,15 +25,20 @@ defmodule PalmSync4Mac.PilotLink.DatebookHandler do
 
   @spec sync_datebook_appointment(Pidlp.DatebookAppointment.t()) :: :ok
   def sync_datebook_appointment(datebook_appointment) do
+    dlpOpenMode = OpenDbMode.build([:read, :write])
+
     {:ok, client_sd, parent_sd} = Pidlp.pilot_connect("usb:")
     Logger.info("#{client_sd} connected to #{parent_sd}")
     {:ok, _client_sd, _result} = Pidlp.open_conduit(client_sd)
     # {:ok, _client_sd, user_info} = PiDlp.read_user_info(client_sd)
-    {:ok, _client_sd, db_handle} = Pidlp.open_db(client_sd, 0, 0x80, "DatebookDB")
+    {:ok, _client_sd, db_handle} =
+      Pidlp.open_db(client_sd, 0, dlpOpenMode, "DatebookDB")
+
     {:ok, _client_sd, sysinfo} = Pidlp.read_sysinfo(client_sd)
     Logger.info("SysInfo: #{inspect(sysinfo)}")
-    {:ok, _client_sd} = Pidlp.write_datebook_record(client_sd, db_handle, datebook_appointment)
-    Logger.info("Wrote datebook record")
+    IO.inspect(datebook_appointment, label: "Final struct sent to NIF")
+    write_resp = Pidlp.write_datebook_record(client_sd, db_handle, datebook_appointment)
+    Logger.info("Wrote datebook record: #{inspect(write_resp)}")
     :timer.sleep(1000)
     {:ok, _client_sd} = Pidlp.close_db(client_sd, db_handle)
     Logger.info("Closed DB")
@@ -58,9 +53,9 @@ defmodule PalmSync4Mac.PilotLink.DatebookHandler do
     # dlp_WriteUserInfo(sd, &User);
     # {:ok, _client_sd} = Pidlp.write_user_info(client_sd, user_info)
 
-    {:ok, _client_sd} = Pidlp.end_of_sync(client_sd, 0)
+    {:ok, _client_sd, _result} = Pidlp.end_of_sync(client_sd, 0)
     Logger.info("End of sync")
-    {:ok, _client_sd} = Pidlp.pilot_disconnect(client_sd, parent_sd)
+    {:ok, _client_sd, _parent_sd} = Pidlp.pilot_disconnect(client_sd, parent_sd)
     Logger.info("Disconnected")
     :ok
   end

@@ -8,7 +8,13 @@ defmodule PalmSync4Mac.MixProject do
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       compilers: [:unifex, :bundlex] ++ Mix.compilers(),
-      deps: deps()
+      deps: deps(),
+
+      # Docs
+      name: "PalmSync4Mac",
+      source_url: "https://github.com/mrmarbury/PalmSync4Mac",
+      homepage_url: "https://github.com/mrmarbury/PalmSync4Mac",
+      docs: &docs/0
     ]
   end
 
@@ -38,9 +44,18 @@ defmodule PalmSync4Mac.MixProject do
       # dev & test
       {:patch, "~> 0.12.0", only: [:test]},
       {:mox, "~> 1.2.0", only: [:test], runtime: false},
-      {:ex_doc, "~> 0.38", only: [:test], runtime: false},
+      {:ex_doc, "~> 0.38", only: [:dev, :test], runtime: false},
       # {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+    ]
+  end
+
+  defp docs do
+    [
+      # The main page in the docs
+      main: "PalmSync4Mac",
+      logo: "logo.png",
+      extras: ["README.md"]
     ]
   end
 end
