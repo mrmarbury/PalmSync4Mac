@@ -12,15 +12,25 @@ defmodule PalmSync4Mac.Repo.Migrations.MigrateResources1 do
       add :last_sync_status, :text
       add :last_synced, :date
       add :name, :text, null: false
-      add :id, :bigint, null: false, primary_key: true
+      add :id, :uuid, null: false, primary_key: true
+    end
+
+    create table(:ek_calendar_datebook_sync_status, primary_key: false) do
+      add :last_sync_success, :boolean, null: false
+      add :last_synced_version, :bigint
+      add :last_synced, :utc_datetime, null: false
+      add :calendar_event_uuid, :uuid, null: false
+      add :palm_device_uuid, :uuid, null: false
+      add :id, :uuid, null: false, primary_key: true
     end
 
     create table(:calendar_event, primary_key: false) do
+      add :version, :bigint, null: false
       add :apple_event_id, :text
       add :deleted, :boolean
       add :invitees, {:array, :text}
       add :calendar_name, :text, null: false
-      add :last_modified, :utc_datetime
+      add :last_modified, :utc_datetime, null: false
       add :location, :text
       add :url, :text
       add :notes, :text
@@ -31,41 +41,19 @@ defmodule PalmSync4Mac.Repo.Migrations.MigrateResources1 do
       add :id, :uuid, null: false, primary_key: true
     end
 
-    create unique_index(
-             :calendar_event,
-             [
-               :title,
-               :start_date,
-               :end_date,
-               :notes,
-               :url,
-               :location,
-               :invitees,
-               :last_modified,
-               :calendar_name
-             ],
+    create unique_index(:calendar_event, [:apple_event_id],
              name: "calendar_event_unique_event_index"
            )
   end
 
   def down do
-    drop_if_exists unique_index(
-                     :calendar_event,
-                     [
-                       :title,
-                       :start_date,
-                       :end_date,
-                       :notes,
-                       :url,
-                       :location,
-                       :invitees,
-                       :last_modified,
-                       :calendar_name
-                     ],
+    drop_if_exists unique_index(:calendar_event, [:apple_event_id],
                      name: "calendar_event_unique_event_index"
                    )
 
     drop table(:calendar_event)
+
+    drop table(:ek_calendar_datebook_sync_status)
 
     drop table(:palm)
   end

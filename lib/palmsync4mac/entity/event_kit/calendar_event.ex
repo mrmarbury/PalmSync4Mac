@@ -28,6 +28,9 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
       upsert?(true)
       upsert_identity(:unique_event)
 
+      #  change(optimistic_lock(:version))
+      #  change(increment(:version))
+
       accept([
         :source,
         :title,
@@ -144,8 +147,8 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
       description("Version of the calendar event. Automatically incremented on each update")
       allow_nil?(false)
       default(0)
-      update_default(&(&1 + 1))
       public?(true)
+      writable?(false)
     end
   end
 end

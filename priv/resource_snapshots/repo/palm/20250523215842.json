@@ -3,12 +3,12 @@
     {
       "default": "nil",
       "size": null,
-      "type": "bigint",
+      "type": "uuid",
       "source": "id",
       "references": null,
       "allow_nil?": false,
-      "generated?": false,
-      "primary_key?": true
+      "primary_key?": true,
+      "generated?": false
     },
     {
       "default": "nil",
@@ -17,8 +17,8 @@
       "source": "name",
       "references": null,
       "allow_nil?": false,
-      "generated?": false,
-      "primary_key?": false
+      "primary_key?": false,
+      "generated?": false
     },
     {
       "default": "nil",
@@ -27,8 +27,8 @@
       "source": "last_synced",
       "references": null,
       "allow_nil?": true,
-      "generated?": false,
-      "primary_key?": false
+      "primary_key?": false,
+      "generated?": false
     },
     {
       "default": "nil",
@@ -37,21 +37,21 @@
       "source": "last_sync_status",
       "references": null,
       "allow_nil?": true,
-      "generated?": false,
-      "primary_key?": false
+      "primary_key?": false,
+      "generated?": false
     }
   ],
   "table": "palm",
-  "hash": "B74C40E976FA8F414DB9CFD61761D8F3B209A8CFC7F8931141B569A3CAC0EFEB",
+  "hash": "BE51DF5CE62A39C3A8590D83432FC173AD384B6DA2E6F5923852CA8CD6049B30",
   "repo": "Elixir.PalmSync4Mac.Repo",
   "identities": [],
+  "custom_indexes": [],
+  "base_filter": null,
+  "custom_statements": [],
   "multitenancy": {
     "global": null,
     "strategy": null,
     "attribute": null
   },
-  "base_filter": null,
-  "custom_indexes": [],
-  "custom_statements": [],
   "has_create_action": true
 }
