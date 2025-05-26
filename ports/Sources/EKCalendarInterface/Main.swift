@@ -95,6 +95,7 @@ func getCalendarEvents(days: Int, calendar: String?, requestId: Int?) async {
             "location": event.location ?? "",
             "notes": event.notes ?? "",
             "apple_event_id": event.eventIdentifier!,
+            "last_modified": ISO8601DateFormatter().string(from: event.lastModifiedDate ?? Date()),
                 // we are not supporting attachments for now
         ]
     }

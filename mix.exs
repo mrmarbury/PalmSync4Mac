@@ -29,12 +29,13 @@ defmodule PalmSync4Mac.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, "~> 3.0"},
-      {:ash_sqlite, "~> 0.1.3"},
+      {:ash, "~> 3.5.12"},
+      {:ash_sqlite, "~> 0.2"},
+      {:ash_sql, "~> 0.2"},
       {:picosat_elixir, "~> 0.2"},
-      {:jason, "~> 1.4.1"},
-      {:usb, "0.2.1"},
-      {:simple_enum, "~> 0.1.0"},
+      {:jason, "~> 1.4"},
+      {:usb, "~> 0.2"},
+      {:simple_enum, "~> 0.1"},
       {:unifex, "~> 1.2"},
       {:timex, "~> 3.7"},
       {:typedstruct, "~> 0.5"},
@@ -42,10 +43,10 @@ defmodule PalmSync4Mac.MixProject do
       {:typed_struct_lens, "~> 0.1", runtime: false},
       {:typed_struct_nimble_options, "~> 0.1"},
       # dev & test
-      {:patch, "~> 0.12.0", only: [:test]},
-      {:mox, "~> 1.2.0", only: [:test], runtime: false},
+      {:patch, "~> 0.15", only: [:test]},
+      {:mox, "~> 1.2", only: [:test], runtime: false},
       {:ex_doc, "~> 0.38", only: [:dev, :test], runtime: false},
-      # {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end

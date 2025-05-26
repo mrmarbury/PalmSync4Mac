@@ -15,7 +15,7 @@ defmodule PalmSync4Mac.Entity.Device.Palm do
     defaults([:read, :destroy])
 
     create(:create) do
-      accept([:name, :id])
+      accept([:name])
     end
 
     update :update_name do

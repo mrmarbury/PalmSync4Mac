@@ -28,8 +28,9 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
       upsert?(true)
       upsert_identity(:unique_event)
 
-      #  change(optimistic_lock(:version))
-      #  change(increment(:version))
+      change(set_attribute(:version, 0))
+      change(atomic_update(:version, expr(version + 1)))
+      upsert_condition(expr(^arg(:last_modified) > last_modified))
 
       accept([
         :source,
@@ -39,8 +40,8 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
         :notes,
         :url,
         :location,
-        :invitees,
         :last_modified,
+        :invitees,
         :calendar_name,
         :deleted,
         :apple_event_id
@@ -97,15 +98,9 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
     end
 
     attribute(:last_modified, :utc_datetime) do
-      description(
-        "The last time the event was modified. Will be UTC now every time the entry is updated/created"
-      )
-
-      writable?(false)
-      default(&DateTime.utc_now/0)
-      update_default(&DateTime.utc_now/0)
-      match_other_defaults?(true)
+      description("The last time the event was modified as stored by Apple")
       allow_nil?(false)
+      public?(true)
     end
 
     attribute(:calendar_name, :string) do
@@ -146,7 +141,6 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
     attribute :version, :integer do
       description("Version of the calendar event. Automatically incremented on each update")
       allow_nil?(false)
-      default(0)
       public?(true)
       writable?(false)
     end
