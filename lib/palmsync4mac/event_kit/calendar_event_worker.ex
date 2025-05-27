@@ -48,10 +48,9 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorker do
           Logger.info("Syncing calendar event: #{inspect(cal_date)}")
 
           PalmSync4Mac.Entity.EventKit.CalendarEvent
+          |> Ash.Changeset.new()
+          |> Ash.Changeset.set_argument(:new_last_modified, cal_date["last_modified"])
           |> Ash.Changeset.for_create(:create_or_update, cal_date)
-          |> Ash.Changeset.set_arguments(%{
-            last_modified: Map.get(cal_date, "last_modified", DateTime.utc_now())
-          })
           |> Ash.create!()
         end)
 

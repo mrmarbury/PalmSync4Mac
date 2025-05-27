@@ -6,6 +6,11 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
     domain: PalmSync4Mac.Entity.EventKit,
     data_layer: AshSqlite.DataLayer
 
+  require Logger
+
+  alias Ash.Error.Changes.InvalidChanges
+  alias Ash.Error.Changes.StaleRecord
+
   sqlite do
     table("calendar_event")
     repo(PalmSync4Mac.Repo)
@@ -30,7 +35,20 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
 
       change(set_attribute(:version, 0))
       change(atomic_update(:version, expr(version + 1)))
-      upsert_condition(expr(^arg(:last_modified) > last_modified))
+
+      upsert_condition(expr(last_modified < ^arg(:new_last_modified)))
+
+      error_handler(fn
+        changeset, %StaleRecord{} ->
+          InvalidChanges.exception(
+            fields: [:last_modified],
+            message: "Calendar event did not change. No update needed.",
+            value: changeset.arguments[:last_modified]
+          )
+
+        _changeset, other ->
+          other
+      end)
 
       accept([
         :source,
