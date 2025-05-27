@@ -8,8 +8,8 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
 
   require Logger
 
-  alias Ash.Error.Changes.InvalidChanges
   alias Ash.Error.Changes.StaleRecord
+  alias Ash.Error.Changes.InvalidChanges
 
   sqlite do
     table("calendar_event")
@@ -39,11 +39,10 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
       upsert_condition(expr(last_modified < ^arg(:new_last_modified)))
 
       error_handler(fn
-        changeset, %StaleRecord{} ->
+        _changeset, %StaleRecord{} ->
           InvalidChanges.exception(
-            fields: [:last_modified],
-            message: "Calendar event did not change. No update needed.",
-            value: changeset.arguments[:last_modified]
+            message: "The event not been modified since it was last written",
+            fields: [:last_modified]
           )
 
         _changeset, other ->

@@ -45,13 +45,18 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorker do
     case PalmSync4Mac.EventKit.PortHandler.get_events(interval, calendar) do
       {:ok, data} ->
         Enum.each(data["events"], fn cal_date ->
-          Logger.info("Syncing calendar event: #{inspect(cal_date)}")
-
-          PalmSync4Mac.Entity.EventKit.CalendarEvent
-          |> Ash.Changeset.new()
-          |> Ash.Changeset.set_argument(:new_last_modified, cal_date["last_modified"])
-          |> Ash.Changeset.for_create(:create_or_update, cal_date)
-          |> Ash.create!()
+          try do
+            PalmSync4Mac.Entity.EventKit.CalendarEvent
+            |> Ash.Changeset.new()
+            |> Ash.Changeset.set_argument(:new_last_modified, cal_date["last_modified"])
+            |> Ash.Changeset.for_create(:create_or_update, cal_date)
+            |> Ash.create!()
+          rescue
+            # upserts throw when the resource is stale. Which in this case means that nothing has 
+            # changed and we dont need to update. So for now we rescue and log
+            reason ->
+              Logger.warning("Failed to create or update calendar event: #{inspect(reason)}")
+          end
         end)
 
       {:error, reason} ->
