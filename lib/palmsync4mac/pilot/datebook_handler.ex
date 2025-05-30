@@ -27,7 +27,7 @@ defmodule PalmSync4Mac.PilotLink.DatebookHandler do
   def sync_datebook_appointment(datebook_appointment) do
     dlpOpenMode = OpenDbMode.build([:read, :write])
 
-    {:ok, client_sd, parent_sd} = Pidlp.pilot_connect("usb:")
+    {:ok, client_sd, parent_sd} = Pidlp.pilot_connect("usb:", 300)
     Logger.info("#{client_sd} connected to #{parent_sd}")
     {:ok, _client_sd, _result} = Pidlp.open_conduit(client_sd)
     # {:ok, _client_sd, user_info} = PiDlp.read_user_info(client_sd)

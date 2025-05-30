@@ -91,7 +91,7 @@ type(
 )
 
 spec(
-  pilot_connect(port :: string) ::
+  pilot_connect(port :: string,wait_timeout :: int) ::
     {:ok :: label, client_sd :: int, parent_sd :: int}
     | {:error :: label, client_sd :: int, parent_sd :: int, message :: string}
 )

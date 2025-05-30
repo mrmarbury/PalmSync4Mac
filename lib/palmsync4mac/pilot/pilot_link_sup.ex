@@ -10,7 +10,8 @@ defmodule PalmSync4Mac.PilotLink.PilotLinkSup do
 
   def init(_args) do
     children = [
-      {PalmSync4Mac.PilotLink.DatebookSyncWorker, []}
+      {DynamicSupervisor,
+       name: PalmSync4Mac.PilotLink.DynamicPilotSyncSup, strategy: :one_for_one}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)

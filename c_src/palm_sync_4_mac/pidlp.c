@@ -170,7 +170,7 @@ DayOfMonthType map_day_of_month(enum DayOfMonthType_t val) {
   }
 } */
 /*pilot-connect*/
-UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port) {
+UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port, int wait_timeout) {
   UNIFEX_TERM res_term;
   int parent_sd = -1, /* Parent socket, formerly sd   */
       client_sd = -1, /* Client socket, formerly sd2  */
@@ -345,7 +345,7 @@ UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port) {
 
   /* Check bProceed to account for previous exceptions */
   if (bProceed) {
-    client_sd = pi_accept_to(parent_sd, 0, 0, 5);
+    client_sd = pi_accept_to(parent_sd, 0, 0, wait_timeout);
     if (client_sd == -1) {
       char error_buffer[100];
       snprintf(error_buffer, sizeof(error_buffer),

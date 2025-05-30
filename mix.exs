@@ -35,11 +35,10 @@ defmodule PalmSync4Mac.MixProject do
       {:picosat_elixir, "~> 0.2"},
       {:jason, "~> 1.4"},
       {:usb, "~> 0.2"},
-      {:simple_enum, "~> 0.1"},
       {:unifex, "~> 1.2"},
       {:timex, "~> 3.7"},
       {:typedstruct, "~> 0.5"},
-      {:enum_type, "~> 1.1.0"},
+      {:enum_type, "~> 1.1"},
       {:typed_struct_lens, "~> 0.1", runtime: false},
       {:typed_struct_nimble_options, "~> 0.1"},
       # dev & test

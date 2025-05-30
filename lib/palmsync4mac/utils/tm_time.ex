@@ -29,7 +29,7 @@ defmodule PalmSync4Mac.Utils.TMTime do
 
         # If the zone is invalid, fall back to UTC
         {:error, message} ->
-          Logger.warn("Falling back to UTC because of #{message}")
+          Logger.warning("Falling back to UTC because of #{message}")
           utc_dt
       end
 
