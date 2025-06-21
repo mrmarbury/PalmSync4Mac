@@ -15,7 +15,11 @@ defmodule PalmSync4Mac.Pilot.PilotSyncWorker do
     plugin(TypedStructNimbleOptions)
 
     field(:device, Palm.t(), doc: "The Palm device to sync with")
-    field(:sync_queue, list({module(), atom(), list()}), default: [], doc: "List of MFA to run in the main sync process")
+
+    field(:sync_queue, list({module(), atom(), list()}),
+      default: [],
+      doc: "List of MFA to run in the main sync process"
+    )
 
     field(:pre_sync_queue, list({module(), atom(), list()}),
       default: [],
@@ -68,8 +72,8 @@ defmodule PalmSync4Mac.Pilot.PilotSyncWorker do
   end
 
   @impl true
-  defp terminate(reason, state) do
-    Logger.info("Terminating #{__MODULE__} with reason #{reason}")
+  def terminate(reason, state) do
+    Logger.info("Stopping #{__MODULE__} at the end of the sync")
     Pidlp.pilot_disconnect(state.client_sd, state.parent_sd)
     terminate_children()
     :ok
@@ -78,6 +82,7 @@ defmodule PalmSync4Mac.Pilot.PilotSyncWorker do
   @impl true
   def handle_continue(:connect, state) do
     Logger.info("Waiting for Palm for #{state.connect_wait_timeout}s (0 means forever)")
+
     case(Pidlp.pilot_connect(state.port, state.connect_wait_timeout)) do
       {:ok, client_sd, parent_sd} ->
         Logger.info("Connected to Palm device with client_sd: #{client_sd} on port #{state.port}")
@@ -95,7 +100,8 @@ defmodule PalmSync4Mac.Pilot.PilotSyncWorker do
   def handle_info(:sync, state) do
     Logger.info("Starting Sync 👷‍♀️")
 
-    queue = state.pre_sync_queue
+    queue =
+      state.pre_sync_queue
       |> Enum.concat(state.sync_queue)
       |> Enum.concat(state.post_sync_queue)
 
@@ -106,22 +112,29 @@ defmodule PalmSync4Mac.Pilot.PilotSyncWorker do
 
     {:stop, :normal, state}
   end
-defp do_sync(_state, []), do: :empty_queue
 
-defp do_sync(state, mfas) do
-  start_queue(mfas, state.client_sd)
-  run_queue(mfas)
-  :ok
-end
+  defp do_sync(_state, []), do: :empty_queue
+
+  defp do_sync(state, mfas) do
+    start_queue(mfas, state.client_sd)
+    run_queue(mfas)
+    :ok
+  end
+
   defp start_queue([], _client_sd), do: :empty_queue
+
   defp start_queue(mfas, client_sd) do
-   mfas
+    mfas
     |> Enum.map(fn {mod, _, _} -> mod end)
     |> Enum.uniq()
     |> Enum.each(fn mod ->
       Logger.info("-> Starting sync worker #{mod}")
       worker_struct = struct(mod, id: mod, client_sd: client_sd)
-      DynamicSupervisor.start_child(PalmSync4Mac.PilotLink.DynamicPilotSyncSup, {mod, worker_struct})
+
+      DynamicSupervisor.start_child(
+        PalmSync4Mac.PilotLink.DynamicPilotSyncSup,
+        {mod, worker_struct}
+      )
     end)
   end
 
@@ -132,10 +145,12 @@ end
 
   defp run_queue([{mod, fun, args} | rest]) do
     Logger.info("-> Running #{mod}.#{fun}(#{inspect(args)})")
+
     case apply(mod, fun, args) do
       :ok ->
         Logger.info("-> #{mod}.#{fun}(#{inspect(args)}) completed successfully")
         run_queue(rest)
+
       {:error, reason} ->
         Logger.error("-> #{mod}.#{fun}(#{inspect(args)}) failed with reason: #{reason}")
         run_queue(rest)
@@ -144,7 +159,7 @@ end
 
   defp terminate_children do
     worker_list = DynamicSupervisor.which_children(PalmSync4Mac.PilotLink.DynamicPilotSyncSup)
-  
+
     Enum.each(worker_list, fn {_id, pid, _type, _name} ->
       # It either kills the process or there is none to kill.
       _any = DynamicSupervisor.terminate_child(PalmSync4Mac.PilotLink.DynamicPilotSyncSup, pid)
