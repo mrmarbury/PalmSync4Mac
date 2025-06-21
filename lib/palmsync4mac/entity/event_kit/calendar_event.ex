@@ -8,8 +8,8 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
 
   require Logger
 
-  alias Ash.Error.Changes.StaleRecord
   alias Ash.Error.Changes.InvalidChanges
+  alias Ash.Error.Changes.StaleRecord
 
   sqlite do
     table("calendar_event")

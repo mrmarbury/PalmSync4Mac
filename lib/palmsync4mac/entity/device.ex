@@ -5,6 +5,6 @@ defmodule PalmSync4Mac.Entity.Device do
   use Ash.Domain
 
   resources do
-    resource(PalmSync4Mac.Entity.Device.Palm)
+    resource(PalmSync4Mac.Entity.Device.PalmUser)
   end
 end

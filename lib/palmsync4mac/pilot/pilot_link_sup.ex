@@ -10,6 +10,7 @@ defmodule PalmSync4Mac.PilotLink.PilotLinkSup do
 
   def init(_args) do
     children = [
+      {Registry, keys: :unique, name: PalmSync4Mac.PilotLink.SyncWorkerRegistry},
       {DynamicSupervisor,
        name: PalmSync4Mac.PilotLink.DynamicPilotSyncSup, strategy: :one_for_one}
     ]
