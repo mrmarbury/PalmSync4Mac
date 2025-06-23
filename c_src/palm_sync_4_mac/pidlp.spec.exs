@@ -3,7 +3,7 @@ module(PalmSync4Mac.Comms.Pidlp)
 interface([NIF])
 
 type(
-  pilot_user :: %PilotUser{
+  pilot_user :: %PalmSync4Mac.Comms.Pidlp.PilotUser{
     # size_t -> unsigned long
     password_length: uint64,
     # char

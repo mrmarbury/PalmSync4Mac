@@ -10,8 +10,8 @@ defmodule PalmSync4Mac.Application do
     children = [
       PalmSync4Mac.System.SystemSup,
       PalmSync4Mac.EventKit.EventKitSup,
-      # PalmSync4Mac.PilotLink.PilotLinkSup,
-      PalmSync4Mac.Repo
+      PalmSync4Mac.Repo,
+      PalmSync4Mac.Pilot.PilotSyncSup
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

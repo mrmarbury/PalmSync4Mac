@@ -1,4 +1,4 @@
-defmodule PalmSync4Mac.Pilot.PilotSyncWorker do
+defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
   @moduledoc """
   When a sync is initiated it connects to the respective Palm and spawns dynamic sync processes until the sync queue is processed
   """
@@ -9,6 +9,7 @@ defmodule PalmSync4Mac.Pilot.PilotSyncWorker do
 
   alias PalmSync4Mac.Comms.Pidlp
   alias PalmSync4Mac.Entity.Device.Palm
+  alias PalmSync4Mac.Pilot.DynamicSyncWorkerSup
 
   typedstruct module: PilotSyncRequest do
     plugin(TypedStructLens)
@@ -16,35 +17,40 @@ defmodule PalmSync4Mac.Pilot.PilotSyncWorker do
 
     field(:device, Palm.t(), doc: "The Palm device to sync with")
 
-    field(:sync_queue, list({module(), atom(), list()}),
+    field(:sync_queue, list(mfa()),
       default: [],
-      doc: "List of MFA to run in the main sync process"
+      doc:
+        "List of MFA to run in the main sync process. The client_sd is always added as a keyword to the args. There is no need to manually add it"
     )
 
-    field(:pre_sync_queue, list({module(), atom(), list()}),
+    field(:pre_sync_queue, list(mfa()),
       default: [],
       doc: """
       List of MFA that should always be included in the sync before the main sync happens.
       These are usually tasks to prepare the main sync. Like fetching user info 
+      the client_sd is always added as a keyword to the args. There is no need to manually add it
       """
     )
 
-    field(:post_sync_queue, list({module(), atom(), list()}),
+    field(:post_sync_queue, list(mfa()),
       default: [],
       doc: """
       List of MFA that should always be included in the sync after the main sync happens.
       These items are usually used for cleanup on the Palm and tasks that need to be run after the main sync.
+      the client_sd is always added as a keyword to the args. There is no need to manually add it
       """
     )
 
     field(:client_sd, integer(),
       default: -1,
-      doc: "The client socket descriptor. Default is -1 to indicate no client sd"
+      doc:
+        "The client socket descriptor. Default is -1 to indicate no client sd. Will be set automatically after connecting"
     )
 
     field(:parent_sd, integer(),
       default: -1,
-      doc: "The parent socket descriptor. Default is -1 to indicate no parent sd"
+      doc:
+        "The parent socket descriptor. Default is -1 to indicate no parent sd. Will be set automatically after connecting"
     )
 
     field(:connect_wait_timeout, integer(),
@@ -57,13 +63,20 @@ defmodule PalmSync4Mac.Pilot.PilotSyncWorker do
       default: "usb:",
       doc: "The port to connect to the Palm device. Default: \"usb:\""
     )
+
+    field(:terminate_after_sync, boolean(),
+      default: true,
+      doc: """
+      If true, the GenServer will terminate after the sync is completed.
+      If false, it will remain running. This is useful for testing/debugging or if you want to keep the connection open for further operations.
+      While the Palm connection may just timeout at some point the sync workers won't terminate until this GenServer is stopped.
+      """
+    )
   end
 
   def start_link(opts \\ %PilotSyncRequest{}) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
-
-  defp via_tuple(id), do: {:via, Registry, {PalmSync4Mac.PilotLink.SyncWorkerRegistry, id}}
 
   @impl true
   def init(opts) do
@@ -105,6 +118,8 @@ defmodule PalmSync4Mac.Pilot.PilotSyncWorker do
       |> Enum.concat(state.sync_queue)
       |> Enum.concat(state.post_sync_queue)
 
+    Logger.info("Sync queue: #{inspect(queue)}")
+
     case do_sync(state, queue) do
       :ok -> Logger.info("Sync finished.")
       :empty_queue -> Logger.warning("Sync queue is empty, nothing to run")
@@ -127,14 +142,16 @@ defmodule PalmSync4Mac.Pilot.PilotSyncWorker do
     mfas
     |> Enum.map(fn {mod, _, _} -> mod end)
     |> Enum.uniq()
-    |> Enum.each(fn mod ->
-      Logger.info("-> Starting sync worker #{mod}")
-      worker_struct = struct(mod, id: mod, client_sd: client_sd)
+    |> Enum.reduce([], fn mod, acc ->
+      worker_struct = struct(mod, client_sd: client_sd)
 
-      DynamicSupervisor.start_child(
-        PalmSync4Mac.PilotLink.DynamicPilotSyncSup,
-        {mod, worker_struct}
-      )
+      case DynamicSupervisor.start_child(DynamicSyncWorkerSup, {mod, worker_struct}) do
+        {:ok, _pid} ->
+          Logger.info("Started sync worker #{mod}")
+
+        {:error, reason} ->
+          Logger.error("Failed to start #{mod}: #{inspect(reason)}")
+      end
     end)
   end
 
@@ -144,8 +161,6 @@ defmodule PalmSync4Mac.Pilot.PilotSyncWorker do
   end
 
   defp run_queue([{mod, fun, args} | rest]) do
-    Logger.info("-> Running #{mod}.#{fun}(#{inspect(args)})")
-
     case apply(mod, fun, args) do
       :ok ->
         Logger.info("-> #{mod}.#{fun}(#{inspect(args)}) completed successfully")
@@ -158,11 +173,14 @@ defmodule PalmSync4Mac.Pilot.PilotSyncWorker do
   end
 
   defp terminate_children do
-    worker_list = DynamicSupervisor.which_children(PalmSync4Mac.PilotLink.DynamicPilotSyncSup)
+    worker_list =
+      DynamicSupervisor.which_children(DynamicSyncWorkerSup)
 
-    Enum.each(worker_list, fn {_id, pid, _type, _name} ->
+    Enum.each(worker_list, fn {_id, pid, _type, name} ->
+      Logger.info("Terminating worker #{Enum.at(name, 0)}, with pid #{inspect(pid)}")
       # It either kills the process or there is none to kill.
-      _any = DynamicSupervisor.terminate_child(PalmSync4Mac.PilotLink.DynamicPilotSyncSup, pid)
+      _any =
+        DynamicSupervisor.terminate_child(DynamicSyncWorkerSup, pid)
     end)
 
     # That's fine
