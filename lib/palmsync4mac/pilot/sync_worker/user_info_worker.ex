@@ -36,6 +36,18 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker do
 
     case read_user_info(state.client_sd) do
       {:ok, user_info} ->
+        try do
+          PalmSync4Mac.Entity.Device.PalmUser
+          |> Ash.Changeset.new()
+          |> Ash.Changeset.for_create(:create_or_update)
+          |> Ash.create!()
+        rescue
+          # upserts throw when the resource is stale. Which in this case means that nothing has
+          # changed and we dont need to update. So for now we rescue and log
+          reason ->
+            Logger.warning("Failed to create or update Pilot User entry: #{inspect(reason)}")
+        end
+
         new_state = %{state | user_info: user_info}
         {:reply, :ok, new_state}
 

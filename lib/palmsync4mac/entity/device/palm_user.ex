@@ -1,6 +1,8 @@
 defmodule PalmSync4Mac.Entity.Device.PalmUser do
   @moduledoc """
-  Represents a the Palm user info in the database
+  Represents a Palm user info in the database
+
+  user_id is used as a unique event because it is the closest to a unique identifier.
   """
   use Ash.Resource,
     domain: PalmSync4Mac.Entity.Device,
