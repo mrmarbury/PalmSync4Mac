@@ -22,7 +22,7 @@ defmodule PalmSync4Mac.Entity.Device.PalmUser do
     identity(
       :unique_event,
       [
-        :user_id
+        :username
       ],
       eager_check?: true
     )
@@ -61,14 +61,14 @@ defmodule PalmSync4Mac.Entity.Device.PalmUser do
     end
 
     attribute(:username, :string) do
-      description("The title of the event")
-      allow_nil?(false)
+      description("The username for the device")
+      allow_nil?(true)
       public?(true)
     end
 
     attribute(:password, :string) do
       description("The password used to secure the Palm device. Not encrypted for now")
-      allow_nil?(false)
+      allow_nil?(true)
       public?(true)
     end
 

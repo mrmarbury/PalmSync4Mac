@@ -1,0 +1,12 @@
+@document.meta
+title: TODO
+description: Loose list to keep track of what I am working on, and what I need to do next.
+authors: Stefan Wendler
+categories: 
+created: 2025-08-16T01:57:20+0100
+updated: 2025-08-16T01:59:04+0100
+version: 1.1.1
+@end
+
+- ( ) Renaming String -> StringUtils
+- ( ) Refactor defp's from user_info_worker.ex to helper/user_info/user_info_helper.ex def's for easier testing and better organization
