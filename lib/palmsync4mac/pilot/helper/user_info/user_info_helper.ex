@@ -1,7 +1,12 @@
-defmodule Palmsync4mac.Pilot.Helper.UserInfo.UserInfoHelper do
+defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
   @moduledoc """
-  Contains all the utility methods used by the UserInfoWorker
+  Contains all the utility methods used by the UserInfoWorker.
+  read actions: reading from the Palm
+  write actions: writing to the Palm
   """
+  require Logger
+  alias PalmSync4Mac.Comms.Pidlp
+  import PalmSync4Mac.Utils.StringUtils
 
   def read_user_info(-1), do: {:error, "Not connected to a Palm device?"}
 
@@ -17,15 +22,12 @@ defmodule Palmsync4mac.Pilot.Helper.UserInfo.UserInfoHelper do
     end
   end
 
-  def write_user_info(-1, _username), do: {:error, "Not connected to Palm device?"}
+  def write_user_info(-1, _user_info), do: {:error, "Not connected to Palm device?"}
 
-  def write_user_info(_client_sd, username) when is_blank(username),
-    do: {:error, "Username cannot be empty"}
-
-  def write_user_info(client_sd, username) do
+  def write_user_info(client_sd, %PalmSync4Mac.Comms.Pidlp.PilotUser{} = user_info) do
     {:ok, user_info} =
-      case(Pidlp.write_user_info(client_sd, Enum.at(user_info, 0))) do
-        {:ok, _client_sd} -> Logger.info("Wrote User Info for user #{username}")
+      case(Pidlp.write_user_info(client_sd, user_info)) do
+        {:ok, _client_sd} -> Logger.info("Wrote User Info for user #{user_info.username}")
       end
   rescue
     error ->
@@ -36,11 +38,11 @@ defmodule Palmsync4mac.Pilot.Helper.UserInfo.UserInfoHelper do
   def write_to_db!(%PalmSync4Mac.Comms.Pidlp.PilotUser{} = user_info) do
     PalmSync4Mac.Entity.Device.PalmUser
     |> Ash.Changeset.new()
-    |> Ash.Changeset.for_create(:create_or_update, user_info)
+    |> Ash.Changeset.for_create(:create_or_update, Map.from_struct(user_info))
     |> Ash.create!()
   end
 
-  def find_user_by_username(username) when is_not_blank(username) do
+  def find_user_by_username(username) when not is_nil(username) and byte_size(username) > 0 do
     PalmSync4Mac.Entity.Device.PalmUser
     |> Ash.Query.filter(:username === username)
     |> Ash.Query.limit(1)

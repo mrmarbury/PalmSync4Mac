@@ -8,12 +8,19 @@ defmodule PalmSync4Mac.Repo.Migrations.MigrateResources1 do
   use Ecto.Migration
 
   def up do
-    create table(:palm, primary_key: false) do
-      add :last_sync_status, :text
-      add :last_synced, :date
-      add :name, :text, null: false
+    create table(:palm_user, primary_key: false) do
+      add :last_sync_date, :bigint, null: false
+      add :successful_sync_date, :bigint
+      add :last_sync_pc, :bigint, null: false
+      add :viewer_id, :bigint, null: false
+      add :user_id, :bigint, null: false
+      add :password, :text
+      add :username, :text, null: false
+      add :password_length, :bigint, null: false
       add :id, :uuid, null: false, primary_key: true
     end
+
+    create unique_index(:palm_user, [:username], name: "palm_user_unique_event_index")
 
     create table(:ek_calendar_datebook_sync_status, primary_key: false) do
       add :last_sync_success, :boolean, null: false
@@ -55,6 +62,8 @@ defmodule PalmSync4Mac.Repo.Migrations.MigrateResources1 do
 
     drop table(:ek_calendar_datebook_sync_status)
 
-    drop table(:palm)
+    drop_if_exists unique_index(:palm_user, [:username], name: "palm_user_unique_event_index")
+
+    drop table(:palm_user)
   end
 end

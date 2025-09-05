@@ -62,8 +62,9 @@
     }
   ],
   "table": "ek_calendar_datebook_sync_status",
-  "hash": "0ED5FA39EFF6EF464FB4D7D4AFBA2587B5E1BC1507C99396893910078C2F50ED",
+  "hash": "2A3740EF6DA07028EEF76F56740ADB3B814ED705844B0C40702DD102D35153F8",
   "repo": "Elixir.PalmSync4Mac.Repo",
+  "strict?": false,
   "identities": [],
   "multitenancy": {
     "global": null,

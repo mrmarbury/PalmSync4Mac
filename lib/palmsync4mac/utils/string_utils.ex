@@ -3,23 +3,8 @@ defmodule PalmSync4Mac.Utils.StringUtils do
   Utility module to test a string for emptiness.
   """
 
-  @doc """
-  Use in a guard to make sure a string is not empty
-  """
-  defmacro is_not_blank(string) do
-    quote do
-      !blank?(string)
-    end
-  end
-
-  @doc """
-  Use in a guard to make sure a string is empty
-  """
-  defmacro is_blank(string) do
-    quote do
-      !blank?(string)
-    end
-  end
+  @list ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u",
+  "v", "w", "x", "y", "z", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
 
   def blank?(nil), do: true
   def blank?(""), do: true
@@ -27,6 +12,6 @@ defmodule PalmSync4Mac.Utils.StringUtils do
   def blank?(_), do: false
 
   def generate_random_string(length \\ 5) do
-    for _ in 1..length(), into: "", do: <<Enum.random("abcdefghijklmnopqrstuvwxyz1234567890")>>
+    for _ <- 1..length, into: "", do: Enum.random(@list)
   end
 end

@@ -35,7 +35,7 @@ defmodule PalmSync4Mac.System.SyncFlagHandler do
 
   @impl true
   def handle_call({:lock_serial, serial}, _from, state) do
-    case PalmSync4Mac.Utils.String.blank?(serial) do
+    case PalmSync4Mac.Utils.StringUtils.blank?(serial) do
       true -> {:reply, {:error, :blank}, state}
       false -> lock_or_fail(String.to_atom(serial), state)
     end
@@ -43,7 +43,7 @@ defmodule PalmSync4Mac.System.SyncFlagHandler do
 
   @impl true
   def handle_call({:unlock_serial, serial}, _from, state) do
-    case PalmSync4Mac.Utils.String.blank?(serial) do
+    case PalmSync4Mac.Utils.StringUtils.blank?(serial) do
       true -> {:reply, {:ok, :blank}, state}
       _ -> {:reply, {:ok, :ets.delete(@table, String.to_atom(serial))}, state}
     end

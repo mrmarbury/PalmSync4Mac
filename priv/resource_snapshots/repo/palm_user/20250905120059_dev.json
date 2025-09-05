@@ -13,8 +13,8 @@
     {
       "default": "nil",
       "size": null,
-      "type": "text",
-      "source": "source",
+      "type": "bigint",
+      "source": "password_length",
       "references": null,
       "allow_nil?": false,
       "generated?": false,
@@ -24,27 +24,7 @@
       "default": "nil",
       "size": null,
       "type": "text",
-      "source": "title",
-      "references": null,
-      "allow_nil?": false,
-      "generated?": false,
-      "primary_key?": false
-    },
-    {
-      "default": "nil",
-      "size": null,
-      "type": "utc_datetime",
-      "source": "start_date",
-      "references": null,
-      "allow_nil?": false,
-      "generated?": false,
-      "primary_key?": false
-    },
-    {
-      "default": "nil",
-      "size": null,
-      "type": "utc_datetime",
-      "source": "end_date",
+      "source": "username",
       "references": null,
       "allow_nil?": false,
       "generated?": false,
@@ -54,80 +34,7 @@
       "default": "nil",
       "size": null,
       "type": "text",
-      "source": "notes",
-      "references": null,
-      "allow_nil?": true,
-      "generated?": false,
-      "primary_key?": false
-    },
-    {
-      "default": "nil",
-      "size": null,
-      "type": "text",
-      "source": "url",
-      "references": null,
-      "allow_nil?": true,
-      "generated?": false,
-      "primary_key?": false
-    },
-    {
-      "default": "nil",
-      "size": null,
-      "type": "text",
-      "source": "location",
-      "references": null,
-      "allow_nil?": true,
-      "generated?": false,
-      "primary_key?": false
-    },
-    {
-      "default": "nil",
-      "size": null,
-      "type": "utc_datetime",
-      "source": "last_modified",
-      "references": null,
-      "allow_nil?": false,
-      "generated?": false,
-      "primary_key?": false
-    },
-    {
-      "default": "nil",
-      "size": null,
-      "type": "text",
-      "source": "calendar_name",
-      "references": null,
-      "allow_nil?": false,
-      "generated?": false,
-      "primary_key?": false
-    },
-    {
-      "default": "nil",
-      "size": null,
-      "type": [
-        "array",
-        "text"
-      ],
-      "source": "invitees",
-      "references": null,
-      "allow_nil?": true,
-      "generated?": false,
-      "primary_key?": false
-    },
-    {
-      "default": "nil",
-      "size": null,
-      "type": "boolean",
-      "source": "deleted",
-      "references": null,
-      "allow_nil?": true,
-      "generated?": false,
-      "primary_key?": false
-    },
-    {
-      "default": "nil",
-      "size": null,
-      "type": "text",
-      "source": "apple_event_id",
+      "source": "password",
       "references": null,
       "allow_nil?": true,
       "generated?": false,
@@ -137,23 +44,64 @@
       "default": "nil",
       "size": null,
       "type": "bigint",
-      "source": "version",
+      "source": "user_id",
+      "references": null,
+      "allow_nil?": false,
+      "generated?": false,
+      "primary_key?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "bigint",
+      "source": "viewer_id",
+      "references": null,
+      "allow_nil?": false,
+      "generated?": false,
+      "primary_key?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "bigint",
+      "source": "last_sync_pc",
+      "references": null,
+      "allow_nil?": false,
+      "generated?": false,
+      "primary_key?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "bigint",
+      "source": "successful_sync_date",
+      "references": null,
+      "allow_nil?": true,
+      "generated?": false,
+      "primary_key?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "bigint",
+      "source": "last_sync_date",
       "references": null,
       "allow_nil?": false,
       "generated?": false,
       "primary_key?": false
     }
   ],
-  "table": "calendar_event",
-  "hash": "64EB3FF41B447B938AD96EE43353D6B11B44E4052DBF98A9C9755D6B307F4CA9",
+  "table": "palm_user",
+  "hash": "CF3DC1B373375D5AE3B80D4F47ABBFBA652A6CCFE1F7D94E76BE3AEEEF005AF1",
   "repo": "Elixir.PalmSync4Mac.Repo",
+  "strict?": false,
   "identities": [
     {
       "name": "unique_event",
       "keys": [
-        "apple_event_id"
+        "username"
       ],
-      "index_name": "calendar_event_unique_event_index",
+      "index_name": "palm_user_unique_event_index",
       "base_filter": null
     }
   ],

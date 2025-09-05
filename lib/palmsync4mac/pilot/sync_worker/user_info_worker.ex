@@ -7,10 +7,9 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker do
 
   require Logger
 
-  alias PalmSync4Mac.Comms.Pidlp
   alias PalmSync4Mac.Pilot.SyncWorkerRegistry
 
-  import Palmsync4mac.Pilot.Helper.UserInfo.UserInfoHelper
+  import PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper
 
   defstruct client_sd: -1, user_info: %PalmSync4Mac.Comms.Pidlp.PilotUser{}, username: nil
 
@@ -39,8 +38,8 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker do
     case read_user_info(state.client_sd) do
       {:ok, user_info} ->
         try do
-          update_username(state.username)
-          write_to_db!(user_info)
+          update_username(user_info, state.username)
+          |> write_to_db!()
         rescue
           # upserts throw when the resource is stale. Which in this case means that nothing has
           # changed and we dont need to update. So for now we rescue and log
