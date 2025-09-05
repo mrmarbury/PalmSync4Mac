@@ -31,6 +31,7 @@ palmsync4mac-*.tar
 # LSP cache
 .elixir_ls/
 .lexical/
+.expert/
 
 # vscode
 .lh/
