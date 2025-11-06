@@ -23,8 +23,8 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker do
     {:ok, worker_info}
   end
 
-  def pre_sync do
-    GenServer.call(__MODULE__, :pre_sync)
+  def pre_sync(username \\ nil) do
+    GenServer.call(__MODULE__, {:pre_sync, username})
   end
 
   def post_sync do
@@ -32,25 +32,41 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker do
   end
 
   @impl true
-  def handle_call(:pre_sync, _from, state) do
-    Logger.info("Pre-sync: Reading user info for client_sd: #{state.client_sd}")
+  def handle_call({:pre_sync, username}, _from, state) do
+    client_sd = state.client_sd
+    Logger.info("Pre-sync: Reading user info for client_sd: #{client_sd}")
 
-    case read_user_info(state.client_sd) do
-      {:ok, user_info} ->
-        try do
-          update_username(user_info, state.username)
-          |> write_to_db!()
-        rescue
-          # upserts throw when the resource is stale. Which in this case means that nothing has
-          # changed and we dont need to update. So for now we rescue and log
-          reason ->
-            Logger.warning("Failed to create or update Pilot User entry: #{inspect(reason)}")
-        end
-
-        new_state = %{state | user_info: user_info}
-        {:reply, :ok, new_state}
-
+    with {:ok, user_info} <- read_user_info(client_sd),
+         with_username <- update_username(user_info, username),
+         with_pc <- update_last_sync_pc(with_username),
+         with_last_sync_date <- update_last_sync_date(with_pc),
+         {:ok, _client_sd} <- write_user_info(client_sd, with_last_sync_date),
+         :ok <- write_to_db!(with_last_sync_date) do
+      new_state = %{state | user_info: with_last_sync_date}
+      {:reply, :ok, new_state}
+    else
       {:error, message} ->
+        Logger.error("Error Pre-Syncing User Info")
+        {:reply, {:error, message}, state}
+    end
+  end
+
+  @impl true
+  def handle_call(:post_sync, _from, state) do
+    client_sd = state.client_sd
+
+    Logger.info(
+      "Post-sync: Writing updated user info the the device with client_sd: #{client_sd}"
+    )
+
+    with with_successful_sync_date <- update_successful_sync_date(state.user_info),
+         {:ok, _client_sd} <- write_user_info(client_sd, with_successful_sync_date),
+         :ok <- write_to_db!(with_successful_sync_date) do
+      new_state = %{state | user_info: with_successful_sync_date}
+      {:reply, :ok, new_state}
+    else
+      {:error, message} ->
+        Logger.error("Error Post-Syncing User Info: #{message}")
         {:reply, {:error, message}, state}
     end
   end

@@ -6,7 +6,7 @@ WARNING: DON'T USE YET! IT'S NOT DOING ANYTHING MEANINGFUL YET!
 
 ## Installation
 
-- `brew install libusb`
+- `brew install libusb pilot-link`
 - `mix local.hex` (if you don't have hex installed)
 - `mix deps.get`
 - `mix deps.compile`

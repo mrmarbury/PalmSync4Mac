@@ -25,10 +25,15 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
   def write_user_info(-1, _user_info), do: {:error, "Not connected to Palm device?"}
 
   def write_user_info(client_sd, %PalmSync4Mac.Comms.Pidlp.PilotUser{} = user_info) do
-    {:ok, user_info} =
-      case(Pidlp.write_user_info(client_sd, user_info)) do
-        {:ok, _client_sd} -> Logger.info("Wrote User Info for user #{user_info.username}")
-      end
+    case(Pidlp.write_user_info(client_sd, user_info)) do
+      {:ok, _client_sd} ->
+        Logger.info("Wrote User Info for user #{user_info.username}")
+        {:ok, user_info}
+
+      {:error, _client_sd, message} ->
+        Logger.error("Failed to write user info: #{message}")
+        {:eror, message}
+    end
   rescue
     error ->
       Logger.error(Exception.format(:error, error, __STACKTRACE__))
@@ -36,10 +41,14 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
   end
 
   def write_to_db!(%PalmSync4Mac.Comms.Pidlp.PilotUser{} = user_info) do
-    PalmSync4Mac.Entity.Device.PalmUser
-    |> Ash.Changeset.new()
-    |> Ash.Changeset.for_create(:create_or_update, Map.from_struct(user_info))
-    |> Ash.create!()
+    case PalmSync4Mac.Entity.Device.PalmUser
+         |> Ash.Changeset.new()
+         |> Ash.Changeset.for_create(:create_or_update, Map.from_struct(user_info))
+         |> Ash.create!() do
+      %PalmSync4Mac.Entity.Device.PalmUser{} -> :ok
+      {:error, :stale_record} -> :ok
+      {:error, message} -> {:error, message}
+    end
   end
 
   def find_user_by_username(username) when not is_nil(username) and byte_size(username) > 0 do
@@ -49,7 +58,7 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
     |> Ash.read!()
   end
 
-  def update_username(user_info, username \\ nil) do
+  def update_username(%PalmSync4Mac.Comms.Pidlp.PilotUser{} = user_info, username \\ nil) do
     user_info_name = user_info.username
 
     case {blank?(user_info_name), blank?(username)} do
@@ -58,5 +67,20 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
       {false, true} -> user_info
       {true, true} -> %{user_info | username: generate_random_string()}
     end
+  end
+
+  def update_last_sync_date(%PalmSync4Mac.Comms.Pidlp.PilotUser{} = user_info) do
+    %{user_info | last_sync_date: DateTime.utc_now() |> DateTime.to_unix()}
+  end
+
+  def update_successful_sync_date(%PalmSync4Mac.Comms.Pidlp.PilotUser{} = user_info) do
+    %{user_info | successful_sync_date: DateTime.utc_now() |> DateTime.to_unix()}
+  end
+
+  # This is always 0 for now. We can't send hostnames to the Palm and
+  # this software is running on only one system for now anyway
+  def update_last_sync_pc(%PalmSync4Mac.Comms.Pidlp.PilotUser{} = user_info) do
+    hostname = 0
+    %{user_info | last_sync_pc: hostname}
   end
 end
