@@ -1,0 +1,1 @@
+- check if we can get by with just using Device.PalmUser instead or Comms.PilotUser and Device.PalmUser
