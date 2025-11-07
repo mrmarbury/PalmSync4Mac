@@ -12,7 +12,7 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorker do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
 
-  @spec sync_calendar_events(list(atom()), non_neg_integer()) :: none()
+  @spec sync_calendar_events([atom()], non_neg_integer()) :: none()
   def sync_calendar_events(calendars \\ [], interval \\ 13) do
     GenServer.cast(__MODULE__, {:sync, calendars, interval})
   end

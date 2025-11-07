@@ -67,7 +67,10 @@ defmodule PalmSync4Mac.Entity.Device.PalmUser do
     end
 
     attribute(:password, :string) do
-      description("The password used to secure the Palm device. Not encrypted for now")
+      description(
+        "The password used to secure the Palm device. Not encrypted for now to remove overhead and it really does not matter that much at the moment"
+      )
+
       allow_nil?(true)
       public?(true)
     end

@@ -15,8 +15,6 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
     plugin(TypedStructLens)
     plugin(TypedStructNimbleOptions)
 
-    field(:device, Palm.t(), doc: "The Palm device to sync with")
-
     field(:sync_queue, list(mfa()),
       default: [],
       doc:

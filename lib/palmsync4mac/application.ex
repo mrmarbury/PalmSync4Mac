@@ -8,7 +8,6 @@ defmodule PalmSync4Mac.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      PalmSync4Mac.System.SystemSup,
       PalmSync4Mac.EventKit.EventKitSup,
       PalmSync4Mac.Repo,
       PalmSync4Mac.Pilot.PilotSyncSup

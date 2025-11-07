@@ -4,6 +4,8 @@ Sync your Palm devices with your Mac apps.
 
 WARNING: DON'T USE YET! IT'S NOT DOING ANYTHING MEANINGFUL YET!
 
+Please don't open any issues yet. I know that nothing is working. That's because there is nothing to work yet.
+
 ## Installation
 
 - `brew install libusb pilot-link`

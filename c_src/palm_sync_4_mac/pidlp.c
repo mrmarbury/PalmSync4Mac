@@ -197,7 +197,7 @@ UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port, int wait_timeout) {
 
     /* Moved err check inside if() block - err only meaningful here */
     if (err) {
-      /*  *BAD* practice - cannot recover from within Java if exit() here.
+      /*  *BAD* practice - cannot recover if exit() here.
           Should create && throw exception instead.
        */
       /*

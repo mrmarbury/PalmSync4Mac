@@ -51,13 +51,6 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
     end
   end
 
-  def find_user_by_username(username) when not is_nil(username) and byte_size(username) > 0 do
-    PalmSync4Mac.Entity.Device.PalmUser
-    |> Ash.Query.filter(:username === username)
-    |> Ash.Query.limit(1)
-    |> Ash.read!()
-  end
-
   def update_username(%PalmSync4Mac.Comms.Pidlp.PilotUser{} = user_info, username \\ nil) do
     user_info_name = user_info.username
 
