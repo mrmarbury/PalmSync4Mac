@@ -61,15 +61,6 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
       default: "usb:",
       doc: "The port to connect to the Palm device. Default: \"usb:\""
     )
-
-    field(:terminate_after_sync, boolean(),
-      default: true,
-      doc: """
-      If true, the GenServer will terminate after the sync is completed.
-      If false, it will remain running. This is useful for testing/debugging or if you want to keep the connection open for further operations.
-      While the Palm connection may just timeout at some point the sync workers won't terminate until this GenServer is stopped.
-      """
-    )
   end
 
   def start_link(opts \\ %PilotSyncRequest{}) do

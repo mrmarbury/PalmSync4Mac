@@ -32,7 +32,6 @@ defmodule PalmSync4Mac.MixProject do
       {:ash, "~> 3.8"},
       {:ash_sqlite, "~> 0.2"},
       {:ash_sql, "~> 0.2"},
-      # {:picosat_elixir, "~> 0.2"},
       {:jason, "~> 1.4"},
       {:unifex, "~> 1.2"},
       {:timex, "~> 3.7"},

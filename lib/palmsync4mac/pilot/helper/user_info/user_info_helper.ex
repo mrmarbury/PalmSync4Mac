@@ -32,7 +32,7 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
 
       {:error, _client_sd, message} ->
         Logger.error("Failed to write user info: #{message}")
-        {:eror, message}
+        {:error, message}
     end
   rescue
     error ->

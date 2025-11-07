@@ -1,3 +1,4 @@
 elixir-ls 0.29.2
 elixir 1.18.3-otp-26
 erlang 26.2.5.12
+nodejs 24.11.0

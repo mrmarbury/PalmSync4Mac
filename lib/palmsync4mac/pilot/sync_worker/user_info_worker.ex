@@ -3,11 +3,9 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker do
   Handles reading and writing of the PalmUserInfo during a sync
   """
 
-  use GenServer
+  use GenServer, restart: :transient
 
   require Logger
-
-  alias PalmSync4Mac.Pilot.SyncWorkerRegistry
 
   import PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper
 
@@ -17,18 +15,18 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker do
     GenServer.start_link(__MODULE__, worker_info, name: __MODULE__)
   end
 
-  @impl true
-  def init(worker_info) do
-    Logger.info("Started #{__MODULE__} for #{worker_info.client_sd}")
-    {:ok, worker_info}
-  end
-
   def pre_sync(username \\ nil) do
     GenServer.call(__MODULE__, {:pre_sync, username})
   end
 
   def post_sync do
     GenServer.call(__MODULE__, :post_sync)
+  end
+
+  @impl true
+  def init(worker_info) do
+    Logger.info("Started #{__MODULE__} for #{worker_info.client_sd}")
+    {:ok, worker_info}
   end
 
   @impl true
