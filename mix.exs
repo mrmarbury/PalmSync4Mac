@@ -29,9 +29,8 @@ defmodule PalmSync4Mac.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, "~> 3.8"},
-      {:ash_sqlite, "~> 0.2"},
-      {:ash_sql, "~> 0.2"},
+      {:ash, "~> 3.0"},
+      {:ash_sqlite, "~> 0.2.0"},
       {:jason, "~> 1.4"},
       {:unifex, "~> 1.2"},
       {:timex, "~> 3.7"},

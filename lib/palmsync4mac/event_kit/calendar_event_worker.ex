@@ -6,40 +6,54 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorker do
 
   require Logger
 
-  defstruct calendars: [], interval: 13
+  # defaults
+  @calendars []
+  @interval 13
 
-  def start_link(_opts) do
-    GenServer.start_link(__MODULE__, [], name: __MODULE__)
-  end
-
-  @spec sync_calendar_events([atom()], non_neg_integer()) :: none()
-  def sync_calendar_events(calendars \\ [], interval \\ 13) do
-    GenServer.cast(__MODULE__, {:sync, calendars, interval})
-  end
-
-  @impl true
-  def init(_opts) do
-    Logger.info("#{__MODULE__} started")
-    {:ok, %__MODULE__{}}
+  def start_link(calendars \\ @calendars, interval \\ @interval)
+      when is_list(calendars) and is_integer(interval) do
+    GenServer.start_link(__MODULE__, [calendars: calendars, interval: interval], name: __MODULE__)
   end
 
   @impl true
-  def handle_cast({:sync, calendars, interval}, state) when is_list(calendars) do
-    case calendars do
+  def init(opts) do
+    Logger.info(
+      "#{__MODULE__} started - Starting Autosync for Calendars #{Enum.join(opts[:calendars], ",")} with interval #{opts[:interval]}"
+    )
+
+    Process.send(self(), :auto_sync, [])
+    {:ok, opts}
+  end
+
+  @impl true
+  def handle_info(:auto_sync, state) do
+    Logger.info("Autosyncing Calendars")
+
+    synced_cals = state[:calendars]
+    sync_interval = state[:interval]
+
+    case synced_cals do
       [] ->
         Logger.info("Fetching all Events)")
-        sync_calendar(nil, interval)
+        sync_calendar(nil, sync_interval)
 
       _ ->
-        Logger.info("Fetching Events for #{inspect(calendars)}")
+        Logger.info("Fetching Events for: #{Enum.join(synced_cals, ", ")}")
 
-        Enum.each(calendars, fn calendar ->
-          sync_calendar(calendar, interval)
+        Enum.each(synced_cals, fn cal ->
+          sync_calendar(cal, sync_interval)
         end)
     end
 
-    {:noreply, %__MODULE__{state | calendars: calendars, interval: interval}}
+    schedule_sync()
+    {:noreply, state}
   end
+
+  defp schedule_sync do
+    Process.send_after(self(), :auto_sync, :timer.minutes(1))
+  end
+
+  ### Business Logic
 
   defp sync_calendar(calendar, interval) do
     case PalmSync4Mac.EventKit.PortHandler.get_events(interval, calendar) do
@@ -52,7 +66,7 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorker do
             |> Ash.Changeset.for_create(:create_or_update, cal_date)
             |> Ash.create!()
           rescue
-            # upserts throw when the resource is stale. Which in this case means that nothing has 
+            # upserts throw when the resource is stale. Which in this case means that nothing has
             # changed and we dont need to update. So for now we rescue and log
             reason ->
               Logger.warning("Failed to create or update calendar event: #{inspect(reason)}")

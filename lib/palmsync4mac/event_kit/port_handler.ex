@@ -65,6 +65,8 @@ defmodule PalmSync4Mac.EventKit.PortHandler do
 
     message = Jason.encode!(command)
 
+    Logger.debug("Calendar Port will be called with: #{inspect(message)}")
+
     Port.command(port, message)
 
     timer_ref = Process.send_after(self(), {:timeout, new_request_id}, 5_000)
