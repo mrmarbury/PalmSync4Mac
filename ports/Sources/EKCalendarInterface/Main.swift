@@ -1,7 +1,9 @@
 import EventKit
 import Foundation
+import os
 
 let store = EKEventStore()
+let logger = Logger(subsystem: "com.palmsync.EKCalendarInterface", category: "Port")
 
 // Function to send messages with a 4-byte length prefix
 func sendMessage(_ message: String, to output: FileHandle = FileHandle.standardOutput) {
@@ -136,21 +138,28 @@ func getSelectedCalendars(named calendarName: String?, store: EKEventStore) -> [
 func startMainLoop() {
     DispatchQueue.global(qos: .userInitiated).async {
         while let message = readMessage() {
+            logger.info("Received message: \(message, privacy: .public)")
+
             if let command = message["command"] as? String {
                 let requestId = message["request_id"] as? Int
+                logger.info("Processing command: \(command, privacy: .public), request_id: \(requestId ?? -1)")
+
                 switch command {
                 case "get_events":
                     let days = message["days"] as? Int ?? 13  // Default to 14 days if not specified
                     let calendar = message["calendar"] as? String ?? nil
+                    logger.info("get_events - days: \(days), calendar: \(calendar ?? "nil", privacy: .public)")
                     Task {
                         await getCalendarEvents(
                             days: days, calendar: calendar, requestId: requestId)
                     }
                 default:
+                    logger.warning("Unknown command received: \(command, privacy: .public)")
                     sendMessage(
                         "{\"error\": \"unknown_command\", \"request_id\": \(requestId ?? -1)}")
                 }
             } else {
+                logger.error("Invalid message format - missing 'command' field")
                 sendMessage("{\"error\": \"invalid_message_format\"}")
             }
         }

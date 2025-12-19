@@ -28,6 +28,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MiscWorker do
     {:ok, worker_info}
   end
 
+  @impl true
   def handle_call(:time_sync, _from, state) do
     timestamp = DateTime.utc_now() |> DateTime.to_unix()
 

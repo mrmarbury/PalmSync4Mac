@@ -86,12 +86,13 @@ type(
     exceptions_count: int,
     exceptions_actual: [timehtm],
     description: string,
-    note: string
+    note: string,
+    rec_id: int
   }
 )
 
 spec(
-  pilot_connect(port :: string,wait_timeout :: int) ::
+  pilot_connect(port :: string, wait_timeout :: int) ::
     {:ok :: label, client_sd :: int, parent_sd :: int}
     | {:error :: label, client_sd :: int, parent_sd :: int, message :: string}
 )
@@ -153,6 +154,6 @@ spec(
 
 spec(
   write_datebook_record(client_sd :: int, db_handle :: int, record_data :: appointment) ::
-    {:ok :: label, client_sd :: int, result :: int}
+    {:ok :: label, client_sd :: int, result :: int, rec_id :: int}
     | {:error :: label, client_sd :: int, result :: int, message :: string}
 )

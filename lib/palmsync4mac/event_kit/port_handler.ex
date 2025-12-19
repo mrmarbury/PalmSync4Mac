@@ -65,6 +65,8 @@ defmodule PalmSync4Mac.EventKit.PortHandler do
 
     message = Jason.encode!(command)
 
+    Logger.debug("Calendar Port will be called with: #{inspect(message)}")
+
     Port.command(port, message)
 
     timer_ref = Process.send_after(self(), {:timeout, new_request_id}, 5_000)
@@ -128,7 +130,7 @@ defmodule PalmSync4Mac.EventKit.PortHandler do
   defp normalize_response_data(data) do
     events_with_source =
       data
-      |> Map.get("events")
+      |> Map.get("events", [])
       |> Enum.map(fn event -> Map.put(event, "source", :apple) end)
 
     data

@@ -29,6 +29,15 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
   actions do
     defaults([:read, :destroy])
 
+    update(:set_synced_to_palm) do
+      change(set_attribute(:sync_to_palm_date, DateTime.utc_now()))
+      change(atomic_update(:version, expr(version + 1)))
+
+      accept([
+        :rec_id
+      ])
+    end
+
     create(:create_or_update) do
       upsert?(true)
       upsert_identity(:unique_event)
@@ -61,7 +70,8 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
         :invitees,
         :calendar_name,
         :deleted,
-        :apple_event_id
+        :apple_event_id,
+        :rec_id
       ])
     end
   end
@@ -146,6 +156,13 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
       public?(true)
     end
 
+    attribute(:sync_to_palm_date, :utc_datetime) do
+      description("Set to the date the event was synced to the Palm device successfully")
+      allow_nil?(true)
+      public?(true)
+      writable?(true)
+    end
+
     attribute :apple_event_id, :string do
       description(
         "The Apple event uuid which is unique across all calendars. If it's set it means that the event is synced with the Apple Calendar"
@@ -160,6 +177,17 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
       allow_nil?(false)
       public?(true)
       writable?(false)
+    end
+
+    attribute :rec_id, :integer do
+      description(
+        "The record id of the palm record. If the record is new, this will be zero by default. After writing the appointment to the palm it has a rec_id which should be used here when referring to that appointment later"
+      )
+
+      allow_nil?(false)
+      public?(true)
+      writable?(true)
+      default(0)
     end
   end
 end

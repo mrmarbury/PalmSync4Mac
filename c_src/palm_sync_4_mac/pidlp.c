@@ -536,11 +536,11 @@ UNIFEX_TERM write_user_info(UnifexEnv *env, int client_sd,
   return res_term;
 }
 
-UNIFEX_TERM write_datebook_record(UnifexEnv *env, int client_sd, int dbhandle,
-                                  appointment appointment) {
+UNIFEX_TERM write_datebook_record(UnifexEnv *env, int client_sd, int dbhandle, appointment appointment) {
   UNIFEX_TERM res_term;
   pi_buffer_t *buf = pi_buffer_new(0xffff);
   struct Appointment pilot_appointment;
+  recordid_t rec_id;
 
   pilot_appointment.event = (int)appointment.event;
   pilot_appointment.begin = timehtm_to_tm(appointment.begin);
@@ -569,41 +569,44 @@ UNIFEX_TERM write_datebook_record(UnifexEnv *env, int client_sd, int dbhandle,
   pilot_appointment.note =
       is_blank(appointment.note) ? NULL : strdup(appointment.note);
 
-  printf("\n--- BEGIN PACK DEBUG ---\n");
-  printf("event: %d\n", pilot_appointment.event);
-  printf("begin: %02d-%02d-%04d %02d:%02d:%02d\n",
-         pilot_appointment.begin.tm_mday, pilot_appointment.begin.tm_mon + 1,
-         pilot_appointment.begin.tm_year + 1900,
-         pilot_appointment.begin.tm_hour, pilot_appointment.begin.tm_min,
-         pilot_appointment.begin.tm_sec);
-  printf("end: %02d-%02d-%04d %02d:%02d:%02d\n", pilot_appointment.end.tm_mday,
-         pilot_appointment.end.tm_mon + 1, pilot_appointment.end.tm_year + 1900,
-         pilot_appointment.end.tm_hour, pilot_appointment.end.tm_min,
-         pilot_appointment.end.tm_sec);
-  printf("repeatEnd: %02d-%02d-%04d %02d:%02d:%02d\n",
-         pilot_appointment.repeatEnd.tm_mday,
-         pilot_appointment.repeatEnd.tm_mon + 1,
-         pilot_appointment.repeatEnd.tm_year + 1900,
-         pilot_appointment.repeatEnd.tm_hour,
-         pilot_appointment.repeatEnd.tm_min,
-         pilot_appointment.repeatEnd.tm_sec);
-  printf("alarm: %d\n", pilot_appointment.alarm);
-  printf("advance: %d\n", pilot_appointment.advance);
-  printf("advanceUnits: %d\n", pilot_appointment.advanceUnits);
-  printf("repeatType: %d\n", pilot_appointment.repeatType);
-  printf("repeatForever: %d\n", pilot_appointment.repeatForever);
-  printf("repeatFrequency: %d\n", pilot_appointment.repeatFrequency);
-  printf("repeatDay: %d\n", pilot_appointment.repeatDay);
-  printf("repeatDays: [%d %d %d %d %d %d %d]\n",
-         pilot_appointment.repeatDays[0], pilot_appointment.repeatDays[1],
-         pilot_appointment.repeatDays[2], pilot_appointment.repeatDays[3],
-         pilot_appointment.repeatDays[4], pilot_appointment.repeatDays[5],
-         pilot_appointment.repeatDays[6]);
-  printf("repeatWeekstart: %d\n", pilot_appointment.repeatWeekstart);
-  printf("exceptions: %d\n", pilot_appointment.exceptions);
-  printf("description: %s\n", pilot_appointment.description);
-  printf("note: %s\n", pilot_appointment.note);
-  printf("--- END PACK DEBUG ---\n");
+  rec_id = (recordid_t) appointment.rec_id;
+
+  // some debugging printfs
+  // printf("\n--- BEGIN PACK DEBUG ---\n");
+  // printf("event: %d\n", pilot_appointment.event);
+  // printf("begin: %02d-%02d-%04d %02d:%02d:%02d\n",
+  //        pilot_appointment.begin.tm_mday, pilot_appointment.begin.tm_mon + 1,
+  //        pilot_appointment.begin.tm_year + 1900,
+  //        pilot_appointment.begin.tm_hour, pilot_appointment.begin.tm_min,
+  //        pilot_appointment.begin.tm_sec);
+  // printf("end: %02d-%02d-%04d %02d:%02d:%02d\n", pilot_appointment.end.tm_mday,
+  //        pilot_appointment.end.tm_mon + 1, pilot_appointment.end.tm_year + 1900,
+  //        pilot_appointment.end.tm_hour, pilot_appointment.end.tm_min,
+  //        pilot_appointment.end.tm_sec);
+  // printf("repeatEnd: %02d-%02d-%04d %02d:%02d:%02d\n",
+  //        pilot_appointment.repeatEnd.tm_mday,
+  //        pilot_appointment.repeatEnd.tm_mon + 1,
+  //        pilot_appointment.repeatEnd.tm_year + 1900,
+  //        pilot_appointment.repeatEnd.tm_hour,
+  //        pilot_appointment.repeatEnd.tm_min,
+  //        pilot_appointment.repeatEnd.tm_sec);
+  // printf("alarm: %d\n", pilot_appointment.alarm);
+  // printf("advance: %d\n", pilot_appointment.advance);
+  // printf("advanceUnits: %d\n", pilot_appointment.advanceUnits);
+  // printf("repeatType: %d\n", pilot_appointment.repeatType);
+  // printf("repeatForever: %d\n", pilot_appointment.repeatForever);
+  // printf("repeatFrequency: %d\n", pilot_appointment.repeatFrequency);
+  // printf("repeatDay: %d\n", pilot_appointment.repeatDay);
+  // printf("repeatDays: [%d %d %d %d %d %d %d]\n",
+  //        pilot_appointment.repeatDays[0], pilot_appointment.repeatDays[1],
+  //        pilot_appointment.repeatDays[2], pilot_appointment.repeatDays[3],
+  //        pilot_appointment.repeatDays[4], pilot_appointment.repeatDays[5],
+  //        pilot_appointment.repeatDays[6]);
+  // printf("repeatWeekstart: %d\n", pilot_appointment.repeatWeekstart);
+  // printf("exceptions: %d\n", pilot_appointment.exceptions);
+  // printf("description: %s\n", pilot_appointment.description);
+  // printf("note: %s\n", pilot_appointment.note);
+  // printf("--- END PACK DEBUG ---\n");
 
   int ok = pack_Appointment(&pilot_appointment, buf, datebook_v1);
   printf("ok = %d\n", ok);
@@ -621,9 +624,7 @@ UNIFEX_TERM write_datebook_record(UnifexEnv *env, int client_sd, int dbhandle,
   }
   printf("\n");
 
-  recordid_t rec_id = 0;
-  int result = dlp_WriteRecord(client_sd, dbhandle, 0, 0, 0, buf->data,
-                               buf->used, &rec_id);
+  int result = dlp_WriteRecord(client_sd, dbhandle, 0, rec_id, 0, buf->data, buf->used, &rec_id);
 
   pi_buffer_free(buf);
 
@@ -632,5 +633,5 @@ UNIFEX_TERM write_datebook_record(UnifexEnv *env, int client_sd, int dbhandle,
                                               "dlp_WriteRecord failed");
   }
 
-  return write_datebook_record_result_ok(env, client_sd, result);
+  return write_datebook_record_result_ok(env, client_sd, result, rec_id);
 }

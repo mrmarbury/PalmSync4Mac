@@ -8,7 +8,6 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
   require Logger
 
   alias PalmSync4Mac.Comms.Pidlp
-  alias PalmSync4Mac.Entity.Device.Palm
   alias PalmSync4Mac.Pilot.DynamicSyncWorkerSup
 
   typedstruct module: PilotSyncRequest do
@@ -25,7 +24,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
       default: [],
       doc: """
       List of MFA that should always be included in the sync before the main sync happens.
-      These are usually tasks to prepare the main sync. Like fetching user info 
+      These are usually tasks to prepare the main sync. Like fetching user info
       the client_sd is always added as a keyword to the args. There is no need to manually add it
       """
     )

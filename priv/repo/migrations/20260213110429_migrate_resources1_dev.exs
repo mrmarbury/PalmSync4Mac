@@ -32,8 +32,10 @@ defmodule PalmSync4Mac.Repo.Migrations.MigrateResources1 do
     end
 
     create table(:calendar_event, primary_key: false) do
+      add :rec_id, :bigint, null: false
       add :version, :bigint, null: false
       add :apple_event_id, :text
+      add :sync_to_palm_date, :utc_datetime
       add :deleted, :boolean
       add :invitees, {:array, :text}
       add :calendar_name, :text, null: false

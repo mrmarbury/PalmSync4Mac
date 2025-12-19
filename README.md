@@ -32,6 +32,10 @@ Sometimes this might be needed to get new dependencies right:
 ### Fetch Apple Events and store them in the DB
 
 ```elixir
-{:ok, data} = PalmSync4Mac.EventKit.CalendarHandler.get_events(0, "Calendar")
-Enum.each(data["events"], fn cal_date -> PalmSync4Mac.Entity.CalendarEvent |> Ash.Changeset.for_create(:create_or_update, cal_date) |> Ash.create! end)
+{:ok, data} = PalmSync4Mac.Entity.EventKit.CalendarHandler.get_events(0, "Calendar")
+Enum.each(data["events"], fn cal_date -> PalmSync4Mac.Entity.EventKit.CalendarEvent |> Ash.Changeset.for_create(:create_or_update, cal_date) |> Ash.create! end)
 ```
+
+### Links
+
+[howto: sqlite migrations](https://hexdocs.pm/ash_sqlite/migrations-and-tasks.html)

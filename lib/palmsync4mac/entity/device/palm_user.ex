@@ -2,16 +2,11 @@ defmodule PalmSync4Mac.Entity.Device.PalmUser do
   @moduledoc """
   Represents a Palm user info in the database
 
-  user_id is used as a unique event because it is the closest to a unique identifier.
+  username is used as a unique event because it is the closest to a unique identifier.
   """
   use Ash.Resource,
     domain: PalmSync4Mac.Entity.Device,
     data_layer: AshSqlite.DataLayer
-
-  require Logger
-
-  alias Ash.Error.Changes.InvalidChanges
-  alias Ash.Error.Changes.StaleRecord
 
   sqlite do
     table("palm_user")
