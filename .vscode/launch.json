@@ -1,0 +1,24 @@
+{
+  "configurations": [
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:palm_sync_4_mac}/ports",
+      "name": "Debug ek_calendar_interface (ports)",
+      "target": "ek_calendar_interface",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug ek_calendar_interface (ports)"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:palm_sync_4_mac}/ports",
+      "name": "Release ek_calendar_interface (ports)",
+      "target": "ek_calendar_interface",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release ek_calendar_interface (ports)"
+    }
+  ]
+}

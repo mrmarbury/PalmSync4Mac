@@ -1,0 +1,22 @@
+{
+  "configurations": [
+    {
+      "name": "Mac",
+      "includePath": [
+        "${workspaceFolder}/c_src/**",
+        "${workspaceFolder}/deps/unifex/c_src/unifex/nif",
+        "/opt/homebrew/Cellar/pilot-link/0.12.5/include",
+        "${env:HOME}/.asdf/installs/erlang/26.2.5.12/erts-14.2.5.10/include"
+      ],
+      "defines": [],
+      "macFrameworkPath": [
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks"
+      ],
+      "compilerPath": "/usr/bin/clang",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "macos-clang-arm64"
+    }
+  ],
+  "version": 4
+}

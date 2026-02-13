@@ -87,6 +87,7 @@ type(
     exceptions_actual: [timehtm],
     description: string,
     note: string,
+    location: string,
     rec_id: int
   }
 )
@@ -154,6 +155,12 @@ spec(
 
 spec(
   write_datebook_record(client_sd :: int, db_handle :: int, record_data :: appointment) ::
+    {:ok :: label, client_sd :: int, result :: int, rec_id :: int}
+    | {:error :: label, client_sd :: int, result :: int, message :: string}
+)
+
+spec(
+  write_calendar_record(client_sd :: int, db_handle :: int, record_data :: appointment) ::
     {:ok :: label, client_sd :: int, result :: int, rec_id :: int}
     | {:error :: label, client_sd :: int, result :: int, message :: string}
 )

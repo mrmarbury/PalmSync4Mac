@@ -14,6 +14,7 @@
 #include <stdarg.h>
 
 #include <pi-datebook.h>
+#include <pi-calendar.h>
 #include <pi-dlp.h>
 #include <pi-file.h>
 #include <pi-memo.h>
@@ -634,4 +635,63 @@ UNIFEX_TERM write_datebook_record(UnifexEnv *env, int client_sd, int dbhandle, a
   }
 
   return write_datebook_record_result_ok(env, client_sd, result, rec_id);
+}
+
+UNIFEX_TERM write_calendar_record(UnifexEnv *env, int client_sd, int dbhandle, appointment appointment) {
+  UNIFEX_TERM res_term;
+  pi_buffer_t *buf = pi_buffer_new(0xffff);
+  CalendarEvent_t cal_event;
+  recordid_t rec_id;
+
+  new_CalendarEvent(&cal_event);
+
+  cal_event.event = (int)appointment.event;
+  cal_event.begin = timehtm_to_tm(appointment.begin);
+  cal_event.end = timehtm_to_tm(appointment.end);
+  cal_event.alarm = (int)appointment.alarm;
+  cal_event.advance = (int)appointment.alarm_advance;
+  cal_event.advanceUnits = (int)appointment.alarm_advance_units;
+  cal_event.repeatType = appointment.repeat_type;
+  cal_event.repeatEnd = timehtm_to_tm(appointment.repeat_end);
+  cal_event.repeatFrequency = (int)appointment.repeat_frequency;
+  cal_event.repeatForever = (int)appointment.repeat_forever;
+  cal_event.repeatDay = appointment.repeat_day;
+
+  for (int i = 0; i < 7; i++) {
+    cal_event.repeatDays[i] =
+        i < appointment.repeat_days_length ? appointment.repeat_days[i] : 0;
+  }
+
+  cal_event.repeatWeekstart = (int)appointment.repeat_weekstart;
+  cal_event.exceptions = (int)appointment.exceptions_count;
+  cal_event.exception = timehtm_list_to_tm_list(
+      appointment.exceptions_actual, appointment.exceptions_count);
+  cal_event.description = strdup(appointment.description);
+  cal_event.note =
+      is_blank(appointment.note) ? NULL : strdup(appointment.note);
+  cal_event.location =
+      is_blank(appointment.location) ? NULL : strdup(appointment.location);
+  cal_event.tz = NULL;
+
+  rec_id = (recordid_t)appointment.rec_id;
+
+  int ok = pack_CalendarEvent(&cal_event, buf, calendar_v1);
+  if (ok == -1) {
+    free_CalendarEvent(&cal_event);
+    pi_buffer_free(buf);
+    return write_calendar_record_result_error(env, client_sd, ok,
+                                              "Failed to pack calendar event");
+  }
+
+  int result = dlp_WriteRecord(client_sd, dbhandle, 0, rec_id, 0, buf->data, buf->used, &rec_id);
+
+  free_CalendarEvent(&cal_event);
+  pi_buffer_free(buf);
+
+  if (result < 0) {
+    return write_calendar_record_result_error(env, client_sd, result,
+                                              "dlp_WriteRecord failed");
+  }
+
+  return write_calendar_record_result_ok(env, client_sd, result, rec_id);
 }
