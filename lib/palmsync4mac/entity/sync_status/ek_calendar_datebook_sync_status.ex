@@ -12,6 +12,31 @@ defmodule PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus do
     repo(PalmSync4Mac.Repo)
   end
 
+  identities do
+    identity(
+      :unique_device_event,
+      [:palm_user_id, :calendar_event_id],
+      eager_check?: true
+    )
+  end
+
+  actions do
+    defaults([:read, :destroy])
+
+    create(:create_or_update) do
+      upsert?(true)
+      upsert_identity(:unique_device_event)
+
+      accept([
+        :palm_user_id,
+        :calendar_event_id,
+        :datebook_rec_id,
+        :last_synced_version,
+        :last_sync_success
+      ])
+    end
+  end
+
   attributes do
     uuid_primary_key(:id)
 
@@ -24,6 +49,13 @@ defmodule PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus do
     attribute(:calendar_event_uuid, :uuid) do
       description("The UUID of the synced EK calendar event entity")
       allow_nil?(false)
+      public?(true)
+    end
+
+    attribute(:datebook_rec_id, :integer) do
+      description("Datebook Palm record  ID. 0 = not yet written to device")
+      allow_nil?(false)
+      default(0)
       public?(true)
     end
 

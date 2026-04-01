@@ -40,3 +40,4 @@ palmsync4mac-*.tar
 ek_*_interface
 ek_interface
 .DS_Store
+.vscode

@@ -67,8 +67,8 @@ Needed:  CalendarEvent ──(1:N)──> Palm Devices
 │ last_synced           (datetime)     │
 │ last_synced_version   (int)          │
 │ last_sync_success     (bool)         │
-│ ── missing: rec_id ──               │
-│ ── missing: unique composite key ── │
+│ ── missing: rec_id ──                │
+│ ── missing: unique composite key ──  │
 └──────────────────────────────────────┘
 ```
 
