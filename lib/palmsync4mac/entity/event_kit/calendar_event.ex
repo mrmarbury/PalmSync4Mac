@@ -11,6 +11,9 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
   alias Ash.Error.Changes.InvalidChanges
   alias Ash.Error.Changes.StaleRecord
 
+  alias PalmSync4Mac.Entity.Devive.PalmUser
+  alias PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus
+
   sqlite do
     table("calendar_event")
     repo(PalmSync4Mac.Repo)
@@ -160,6 +163,16 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
       allow_nil?(false)
       public?(true)
       writable?(false)
+    end
+  end
+
+  relationships do
+    many_to_many :palm_users, PalmUser do
+      through(EkCalendarDatebookSyncStatus)
+      source_attribute(:id)
+      destination_attribute(:id)
+      source_attribute_on_join_resource(:calendar_event_uuid)
+      destination_attribute_on_join_resource(:palm_user_uuid)
     end
   end
 end

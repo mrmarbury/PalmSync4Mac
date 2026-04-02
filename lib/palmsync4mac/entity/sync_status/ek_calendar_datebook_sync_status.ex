@@ -12,6 +12,9 @@ defmodule PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus do
     repo(PalmSync4Mac.Repo)
   end
 
+  alias PalmSync4Mac.Entity.EventKit.CalendarEvent
+  alias PalmSync4Mac.Entity.Devive.PalmUser
+
   identities do
     identity(
       :unique_device_event,
@@ -82,6 +85,18 @@ defmodule PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus do
       allow_nil?(false)
       default(false)
       public?(true)
+    end
+  end
+
+  relationships do
+    belongs_to :palm_user, PalmUser do
+      attribute(:palm_user_uuid)
+      allow_nil?(false)
+    end
+
+    belongs_to :calendar_event, CalendarEvent do
+      attribute(:calendar_event_uuid)
+      allow_nil?(false)
     end
   end
 end
