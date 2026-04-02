@@ -18,6 +18,7 @@
 When asked to review code:
 
 1. **Run Static Analysis Tools First** (in fix mode when available):
+
    - `mix format` - Auto-format code
    - `mix credo --strict` - Code quality and style analysis
    - `mix credo suggest --format=flycheck` - Get suggestions in fix mode
@@ -41,6 +42,7 @@ When asked to review code:
 ## Problem Solving Approach - DISCUSSION ONLY
 
 When asked how to solve a problem:
+
 1. **EXPLANATION ONLY** - Provide technical explanations in chat
 2. **NO PLANS** - Never create implementation plans or use planning tools
 3. **NO CODE CHANGES** - Never modify, create, or suggest specific file changes
@@ -49,11 +51,13 @@ When asked how to solve a problem:
 6. **WAIT FOR EXPLICIT PERMISSION** before taking any action beyond explanation
 
 ### Examples of Appropriate responses:
+
 - "The issue is X because Y. You could approach it by Z."
 - "In Elixir, this pattern works well: [explanation]"
 - "The defguard macro would solve this because..."
 
 ### Examples of PROHIBITED responses:
+
 - "Let me fix this by changing..."
 - "Here's my plan to implement..."
 - "I'll modify the code to..."
@@ -63,6 +67,7 @@ When asked how to solve a problem:
 Ensure all reviews and guidance emphasize:
 
 ### Code Quality
+
 - Proper use of pattern matching
 - Appropriate GenServer usage and supervision trees
 - Error handling with `{:ok, result}` / `{:error, reason}` tuples
@@ -70,18 +75,21 @@ Ensure all reviews and guidance emphasize:
 - Idiomatic Elixir naming conventions (snake_case)
 
 ### Testing
+
 - ExUnit test structure and organization
 - Property-based testing with StreamData where appropriate
 - Mock usage with Mox for external dependencies
 - Proper test isolation and setup
 
 ### OTP Principles
+
 - Correct GenServer state management
 - Proper supervisor configuration
 - Process isolation and fault tolerance
 - Registry usage for process discovery
 
 ### Project-Specific Concerns
+
 - **NIF Safety**: Proper error handling in C code to prevent crashes
 - **Unifex Usage**: Correct spec definitions and type mappings
 - **Palm HotSync Protocol**: Adherence to sync states and error conditions
@@ -105,6 +113,7 @@ Ensure all reviews and guidance emphasize:
 ## Review Checklist
 
 When reviewing, check for:
+
 - [ ] Proper error handling for NIF calls
 - [ ] GenServer state consistency
 - [ ] Resource cleanup (sockets, database handles, pi_buffer, malloc'd strings)
@@ -117,8 +126,6 @@ When reviewing, check for:
 - [ ] Logging appropriateness
 - [ ] Palm character encoding (ISO-8859-1 via codepagex, not UTF-8)
 - [ ] TM struct correctness (tm_mon 0-11, tm_year = year - 1900)
-
----
 
 ## Codebase Knowledge
 
@@ -209,19 +216,19 @@ PalmSync4Mac.Supervisor (one_for_one)
 
 ### NIF Functions (pidlp.c → pidlp.spec.exs)
 
-| Function | Args | Returns |
-|---|---|---|
-| `pilot_connect/2` | port, wait_timeout | `{:ok, client_sd, parent_sd}` / `{:error, ...}` |
-| `pilot_disconnect/2` | client_sd, parent_sd | `{:ok, client_sd, parent_sd}` |
-| `open_conduit/1` | client_sd | `{:ok, client_sd, result}` / `{:error, ...}` |
-| `open_db/4` | client_sd, card_no, mode, dbname | `{:ok, client_sd, db_handle}` / `{:error, ...}` |
-| `close_db/2` | client_sd, db_handle | `{:ok, client_sd}` |
-| `end_of_sync/2` | client_sd, status | `{:ok, client_sd, result}` / `{:error, ...}` |
-| `read_sysinfo/1` | client_sd | `{:ok, client_sd, sys_info}` / `{:error, ...}` |
-| `get_sys_date_time/1` | client_sd | `{:ok, client_sd, palm_date_time}` / `{:error, ...}` |
-| `set_sys_date_time/2` | client_sd, palm_date_time | `{:ok, client_sd}` / `{:error, ...}` |
-| `read_user_info/1` | client_sd | `{:ok, client_sd, user_info}` / `{:error, ...}` |
-| `write_user_info/2` | client_sd, user_info | `{:ok, client_sd}` / `{:error, ...}` |
+| Function                  | Args                              | Returns                                              |
+| ------------------------- | --------------------------------- | ---------------------------------------------------- |
+| `pilot_connect/2`         | port, wait_timeout                | `{:ok, client_sd, parent_sd}` / `{:error, ...}`      |
+| `pilot_disconnect/2`      | client_sd, parent_sd              | `{:ok, client_sd, parent_sd}`                        |
+| `open_conduit/1`          | client_sd                         | `{:ok, client_sd, result}` / `{:error, ...}`         |
+| `open_db/4`               | client_sd, card_no, mode, dbname  | `{:ok, client_sd, db_handle}` / `{:error, ...}`      |
+| `close_db/2`              | client_sd, db_handle              | `{:ok, client_sd}`                                   |
+| `end_of_sync/2`           | client_sd, status                 | `{:ok, client_sd, result}` / `{:error, ...}`         |
+| `read_sysinfo/1`          | client_sd                         | `{:ok, client_sd, sys_info}` / `{:error, ...}`       |
+| `get_sys_date_time/1`     | client_sd                         | `{:ok, client_sd, palm_date_time}` / `{:error, ...}` |
+| `set_sys_date_time/2`     | client_sd, palm_date_time         | `{:ok, client_sd}` / `{:error, ...}`                 |
+| `read_user_info/1`        | client_sd                         | `{:ok, client_sd, user_info}` / `{:error, ...}`      |
+| `write_user_info/2`       | client_sd, user_info              | `{:ok, client_sd}` / `{:error, ...}`                 |
 | `write_datebook_record/3` | client_sd, db_handle, appointment | `{:ok, client_sd, result, rec_id}` / `{:error, ...}` |
 | `write_calendar_record/3` | client_sd, db_handle, appointment | `{:ok, client_sd, result, rec_id}` / `{:error, ...}` |
 
@@ -235,20 +242,24 @@ PalmSync4Mac.Supervisor (one_for_one)
 ### Ash Resources & Database
 
 **Domain: Entity.Device**
+
 - `PalmUser` (table: `palm_user`) — username (unique identity), password, user_id, viewer_id, sync timestamps
   - Action: `:create_or_update` upserts on username
 
 **Domain: Entity.EventKit**
+
 - `CalendarEvent` (table: `calendar_event`) — source, title, start/end dates, notes, url, location, calendar_name, invitees, deleted flag, sync_to_palm_date, apple_event_id (unique identity), version (auto-incremented), rec_id
   - Action: `:create_or_update` upserts on apple_event_id, skips stale records (last_modified comparison)
   - Action: `:set_synced_to_palm` updates sync_to_palm_date + rec_id after Palm write
 
 **Domain: Entity.SyncStatus**
+
 - `EkCalendarDatebookSyncStatus` (table: `ek_calendar_datebook_sync_status`) — tracks per-device sync state (defined but not actively used yet)
 
 ### Data Flow
 
 **Apple Calendar → SQLite:**
+
 ```
 macOS EventKit → Swift port (stdin/stdout JSON, 4-byte length prefix)
 → PortHandler (GenServer, request/response with IDs, 5s timeout)
@@ -258,6 +269,7 @@ macOS EventKit → Swift port (stdin/stdout JSON, 4-byte length prefix)
 ```
 
 **SQLite → Palm Device:**
+
 ```
 MainWorker starts sync → spawns workers from pre_sync/sync/post_sync queues
 Pre-sync:  MiscWorker.time_sync() → set_sys_date_time NIF
@@ -313,6 +325,7 @@ Post-sync: UserInfoWorker.post_sync() → write_user_info NIF (update sync times
 ### Questions Welcome
 
 Ask about:
+
 - Palm HotSync protocol specifics
 - Unifex/NIF best practices
 - Elixir OTP patterns
