@@ -1,6 +1,6 @@
 # Calendar Event Sync Design — Multi-Device Support
 
-## Status: Proposed
+## Status: Proposed (Revised to use Ash many_to_many)
 
 ## Problem Statement
 
@@ -18,6 +18,28 @@ Needed:  CalendarEvent ──(1:N)──> Palm Devices
 3. Preserve design space for future bidirectional sync (Palm → Mac)
 4. Use PalmUser.username as device identity (unique in our domain)
 5. PalmSync4Mac is the authoritative source — if a user names two Palms identically, that's not our problem
+
+## Approach: Ash many_to_many Relationships
+
+This design uses Ash's `many_to_many` relationship pattern instead of manually managing a join table. This provides:
+
+**Benefits:**
+- **Declarative relationships** — Ash handles the foreign key management and join logic
+- **Simpler queries** — Load related data with `load()`, filter with `exists()` on relationship paths
+- **Automatic preloading** — Access `event.palm_users` or `palm_user.calendar_events` naturally
+- **Better type safety** — Ash validates relationship integrity at compile and runtime
+- **Future-proof** — Ash optimizes join queries; we don't manually write SQL
+
+**How it works:**
+- `PalmUser` and `CalendarEvent` both declare `many_to_many` relationships
+- `EkCalendarDatebookSyncStatus` is the "through" resource with `belongs_to` to both sides
+- Sync metadata (`rec_id`, `last_synced`, etc.) lives on the through resource
+- Ash treats the through resource as a first-class entity we can query and upsert directly
+
+**Mental model:**
+- Not a "join table" — it's a "sync status per device-event pair" resource
+- Each sync status record answers: "What's the state of event X on device Y?"
+- Relationships are bidirectional: query from either side
 
 ## Current Data Model
 
@@ -81,7 +103,7 @@ Needed:  CalendarEvent ──(1:N)──> Palm Devices
 │    PalmUser      │                                            │    CalendarEvent      │
 ├──────────────────┤       ┌──────────────────────────────┐     ├──────────────────────┤
 │ id         (PK)  │──┐    │ EkCalendarDatebookSyncStatus │  ┌──│ id            (PK)   │
-│ username (unique)│  │    ├──────────────────────────────┤  │  │ apple_event_id       │
+│ username (unique)│  │    │     (through resource)       │  │  │ apple_event_id       │
 │ user_id          │  └───>│ id                    (PK)   │<─┘  │ source               │
 │ viewer_id        │       │ palm_user_id          (FK)   │     │ title                │
 │ last_sync_pc     │       │ calendar_event_id     (FK)   │     │ start_date           │
@@ -89,28 +111,73 @@ Needed:  CalendarEvent ──(1:N)──> Palm Devices
 │ password_length  │       │ last_synced     (datetime)   │     │ notes                │
 │ successful_sync  │       │ last_synced_version   (int?) │     │ url                  │
 │ last_sync_date   │       │ last_sync_success     (bool) │     │ location             │
-└──────────────────┘       ├──────────────────────────────┤     │ last_modified         │
-                           │ UNIQUE: (palm_user_id,       │     │ calendar_name        │
-                           │         calendar_event_id)   │     │ invitees             │
-                           └──────────────────────────────┘     │ deleted              │
-                                                                │ version              │
-                                                                │ ── REMOVED ──        │
-                                                                │ sync_to_palm_date    │
+│                  │       ├──────────────────────────────┤     │ last_modified         │
+│ many_to_many     │       │ UNIQUE: (palm_user_id,       │     │ calendar_name        │
+│ :calendar_events │       │         calendar_event_id)   │     │ invitees             │
+│   through: ^     │       │                              │     │ deleted              │
+│                  │       │ belongs_to :palm_user        │     │ version              │
+└──────────────────┘       │ belongs_to :calendar_event   │     │ ── REMOVED ──        │
+                           └──────────────────────────────┘     │ sync_to_palm_date    │
                                                                 │ rec_id               │
+                                                                │                      │
+                                                                │ many_to_many         │
+                                                                │ :palm_users          │
+                                                                │   through: ^         │
                                                                 └──────────────────────┘
+```
+
+### Ash Relationships
+
+**PalmUser has many_to_many CalendarEvents:**
+```elixir
+many_to_many :calendar_events, CalendarEvent do
+  through EkCalendarDatebookSyncStatus
+  source_attribute :id
+  destination_attribute :id
+  source_attribute_on_join_resource :palm_user_id
+  destination_attribute_on_join_resource :calendar_event_id
+end
+```
+
+**CalendarEvent has many_to_many PalmUsers:**
+```elixir
+many_to_many :palm_users, PalmUser do
+  through EkCalendarDatebookSyncStatus
+  source_attribute :id
+  destination_attribute :id
+  source_attribute_on_join_resource :calendar_event_id
+  destination_attribute_on_join_resource :palm_user_id
+end
+```
+
+**EkCalendarDatebookSyncStatus belongs_to both:**
+```elixir
+belongs_to :palm_user, PalmUser do
+  attribute :palm_user_id
+  allow_nil? false
+end
+
+belongs_to :calendar_event, CalendarEvent do
+  attribute :calendar_event_id
+  allow_nil? false
+end
 ```
 
 ### Changes Summary
 
 | Resource                       | Change                                                     | Reason                                    |
 | ------------------------------ | ---------------------------------------------------------- | ----------------------------------------- |
-| `CalendarEvent`                | Remove `sync_to_palm_date`                                 | Moves to join table (per-device)          |
-| `CalendarEvent`                | Remove `rec_id`                                            | Moves to join table (per-device)          |
-| `CalendarEvent`                | Remove `:set_synced_to_palm` action                        | Replaced by join table action             |
+| `CalendarEvent`                | Remove `sync_to_palm_date`                                 | Moves to through resource (per-device)    |
+| `CalendarEvent`                | Remove `rec_id`                                            | Moves to through resource (per-device)    |
+| `CalendarEvent`                | Remove `:set_synced_to_palm` action                        | Replaced by sync_status upsert            |
 | `CalendarEvent`                | Remove `rec_id` from `:create_or_update` accept list       | No longer on this resource                |
+| `CalendarEvent`                | Add `many_to_many :palm_users` relationship                | Access synced devices via Ash             |
+| `PalmUser`                     | Add `many_to_many :calendar_events` relationship           | Access synced events via Ash              |
 | `EkCalendarDatebookSyncStatus` | Add `rec_id` (int, default 0)                              | Track Palm record ID per device           |
 | `EkCalendarDatebookSyncStatus` | Rename `palm_device_uuid` → `palm_user_id`                 | Clarity: references PalmUser.id           |
 | `EkCalendarDatebookSyncStatus` | Rename `calendar_event_uuid` → `calendar_event_id`         | Consistency with Ash conventions          |
+| `EkCalendarDatebookSyncStatus` | Add `belongs_to :palm_user` relationship                   | Ash many_to_many requires belongs_to      |
+| `EkCalendarDatebookSyncStatus` | Add `belongs_to :calendar_event` relationship              | Ash many_to_many requires belongs_to      |
 | `EkCalendarDatebookSyncStatus` | Add unique identity on `{palm_user_id, calendar_event_id}` | Enable upsert per device+event pair       |
 | `EkCalendarDatebookSyncStatus` | Add `:create_or_update` action                             | Upsert sync state after each sync attempt |
 
@@ -155,18 +222,6 @@ defmodule PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus do
   attributes do
     uuid_primary_key(:id)
 
-    attribute(:palm_user_id, :uuid) do
-      description("References PalmUser.id — identifies which Palm device")
-      allow_nil?(false)
-      public?(true)
-    end
-
-    attribute(:calendar_event_id, :uuid) do
-      description("References CalendarEvent.id — identifies which event")
-      allow_nil?(false)
-      public?(true)
-    end
-
     attribute(:rec_id, :integer) do
       description("Palm record ID. 0 = not yet written to device.")
       allow_nil?(false)
@@ -196,6 +251,18 @@ defmodule PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus do
       public?(true)
     end
   end
+
+  relationships do
+    belongs_to :palm_user, PalmSync4Mac.Entity.Device.PalmUser do
+      attribute :palm_user_id
+      allow_nil? false
+    end
+
+    belongs_to :calendar_event, PalmSync4Mac.Entity.EventKit.CalendarEvent do
+      attribute :calendar_event_id
+      allow_nil? false
+    end
+  end
 end
 ```
 
@@ -220,25 +287,62 @@ For a given `palm_user_id`, find events that need syncing:
 Events to sync for PalmUser X:
 
   CalendarEvent WHERE:
-    1. No join row exists for PalmUser X     → never synced to this device
+    1. No sync_status exists for PalmUser X  → never synced to this device
     OR
-    2. Join row exists AND rec_id = 0        → previous write failed
+    2. sync_status exists AND rec_id = 0     → previous write failed
     OR
-    3. Join row exists AND
+    3. sync_status exists AND
        CalendarEvent.version >
-       join.last_synced_version              → event modified since last sync
+       sync_status.last_synced_version       → event modified since last sync
 ```
 
+Using Ash many_to_many relationships, we can query in multiple ways:
+
+**Option A: Load relationship and filter in memory**
 ```elixir
-# Pseudocode — actual Ash query TBD during implementation
+# Load all events with their sync_statuses
+events = CalendarEvent
+|> Ash.Query.load(sync_statuses: [:palm_user])
+|> Ash.read!()
+
+# Filter for events needing sync to specific device
+events
+|> Enum.filter(fn event ->
+  case Enum.find(event.sync_statuses, &(&1.palm_user_id == palm_user_id)) do
+    nil -> true  # Never synced to this device
+    %{rec_id: 0} -> true  # Previous write failed
+    status -> event.version > status.last_synced_version  # Event updated
+  end
+end)
+```
+
+**Option B: Use Ash query filters with exists**
+```elixir
+# Direct filter using relationship path
 CalendarEvent
 |> Ash.Query.filter(
   not exists(sync_statuses, palm_user_id == ^palm_user_id)
   or exists(sync_statuses, palm_user_id == ^palm_user_id and rec_id == 0)
-  or exists(sync_statuses, palm_user_id == ^palm_user_id and last_synced_version < version)
+  or exists(sync_statuses, palm_user_id == ^palm_user_id and last_synced_version < parent(version))
 )
 |> Ash.read!()
 ```
+
+**Option C: Query from PalmUser side**
+```elixir
+# Get the device, load its events, then filter
+palm_user = PalmUser
+|> Ash.Query.filter(id == ^palm_user_id)
+|> Ash.Query.load(calendar_events: [:sync_statuses])
+|> Ash.read_one!()
+
+# All events the device has never seen
+all_events = CalendarEvent |> Ash.read!()
+synced_event_ids = MapSet.new(palm_user.calendar_events, & &1.id)
+never_synced = Enum.reject(all_events, &MapSet.member?(synced_event_ids, &1.id))
+```
+
+Implementation will determine the most efficient approach based on query planner behavior.
 
 ### Post-Write Update
 
@@ -406,11 +510,12 @@ The join table as designed already supports bidirectional sync:
 
 ### Code Changes
 
-1. **`EkCalendarDatebookSyncStatus`** — Add rec_id, rename fields, add identity, add create_or_update action
-2. **`CalendarEvent`** — Remove sync_to_palm_date, rec_id, :set_synced_to_palm action; remove rec_id from :create_or_update accept list
-3. **`PilotSyncRequest`** — Add palm_user_id field
-4. **`MainWorker`** — Store palm_user_id after pre_sync; inject into sync queue MFA args
-5. **`UserInfoWorker.pre_sync/0`** — Return palm_user_id after upsert
-6. **`AppointmentWorker`** — Accept palm_user_id; rewrite sync query to use join table; write to join table instead of CalendarEvent after sync
-7. **`DatebookAppointment.from_calendar_event/1`** — No change needed (doesn't depend on rec_id/sync_to_palm_date from CalendarEvent; rec_id comes from join table or defaults to 0 for new records)
-8. **Generate migration** — `mix ash_sqlite.generate_migrations`
+1. **`EkCalendarDatebookSyncStatus`** — Add rec_id, rename fields, add belongs_to relationships, add identity, add create_or_update action
+2. **`CalendarEvent`** — Remove sync_to_palm_date, rec_id, :set_synced_to_palm action; remove rec_id from :create_or_update accept list; add many_to_many :palm_users relationship
+3. **`PalmUser`** — Add many_to_many :calendar_events relationship
+4. **`PilotSyncRequest`** — Add palm_user_id field
+5. **`MainWorker`** — Store palm_user_id after pre_sync; inject into sync queue MFA args
+6. **`UserInfoWorker.pre_sync/0`** — Return palm_user_id after upsert
+7. **`AppointmentWorker`** — Accept palm_user_id; rewrite sync query using Ash relationships; write to EkCalendarDatebookSyncStatus instead of CalendarEvent after sync
+8. **`DatebookAppointment.from_calendar_event/1`** — No change needed (doesn't depend on rec_id/sync_to_palm_date from CalendarEvent; rec_id comes from sync_status or defaults to 0 for new records)
+9. **Generate migration** — `mix ash_sqlite.generate_migrations`
