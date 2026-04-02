@@ -90,12 +90,12 @@ defmodule PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus do
 
   relationships do
     belongs_to :palm_user, PalmUser do
-      attribute(:palm_user_uuid)
+      attribute(:palm_user_id)
       allow_nil?(false)
     end
 
     belongs_to :calendar_event, CalendarEvent do
-      attribute(:calendar_event_uuid)
+      attribute(:calendar_event_id)
       allow_nil?(false)
     end
   end

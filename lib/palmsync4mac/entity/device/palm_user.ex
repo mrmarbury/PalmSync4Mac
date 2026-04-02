@@ -119,8 +119,8 @@ defmodule PalmSync4Mac.Entity.Device.PalmUser do
       through(EkCalendarDatebookSyncStatus)
       source_attribute(:id)
       destination_attribute(:id)
-      source_attribute_on_join_resource(:palm_user_uuid)
-      destination_attribute_on_join_resource(:calendar_event_uuid)
+      source_attribute_on_join_resource(:palm_user_id)
+      destination_attribute_on_join_resource(:calendar_event_id)
     end
   end
 end
