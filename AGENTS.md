@@ -75,6 +75,24 @@ Contract Sheet is the single source of truth. Code follows contracts.
 - Ash framework: correct resource definitions and action usage
 - Phoenix LiveView readiness: code structure supports future UI integration
 
+## Required Skills (ALWAYS load)
+
+These skills MUST be loaded for ANY task in this repo. They encode domain-specific patterns that generic AI behavior will violate.
+
+| Skill | Why It's Required |
+|---|---|
+| `elixir` | Core language — all application code is Elixir |
+| `ash` | Ash framework is the data layer — resource definitions, actions, identities, relationships, SQLite migrations |
+| `phoenix` | Phoenix LiveView readiness constraint — code structure must support future UI integration |
+| `elixir-otp-patterns` | All sync workers are GenServer processes under DynamicSupervisor — OTP patterns are the architecture |
+| `elixir-pattern-matching` | Core Elixir control flow — function clauses, with statements, case matching |
+| `elixir-tdd` | Contract-driven development requires Red-Green-Refactor discipline — failing tests before implementation |
+| `elixir-testing` | ExUnit with Patch library for NIF mocking, Mox for external deps — test patterns are non-obvious |
+| `c-nifs-ports` | pidlp NIF bridge (Unifex/Bundlex), Erlang port for Swift — NIF safety and type mappings are critical |
+| `swift` | Swift EventKit port at `ports/` — builds with `pushd ports && swift build -c release ; popd` |
+
+**Enforcement**: Any `task()` delegation that touches Elixir, Ash, NIF, or Swift code MUST include all relevant skills in `load_skills`. When in doubt, include all of them.
+
 ## Second Brain Integration
 
 Vault root: `/Users/marbury/Library/Mobile Documents/iCloud~md~obsidian/Documents/Vault`
