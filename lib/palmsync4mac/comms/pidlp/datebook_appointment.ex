@@ -96,6 +96,11 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointment do
         "Note text of the appointment. Default is empty string which becomes NULL in C and therefore won't create a note on the Palm device"
     )
 
+    field(:location, String.t(),
+      default: "",
+      doc: "Location of the appointment. Sent as a separate field in PalmOS5 Calendar format"
+    )
+
     field(:rec_id, non_neg_integer(),
       default: 0,
       doc:
@@ -112,9 +117,20 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointment do
        begin: event.start_date |> DateTime.to_unix() |> TMTime.unix_to_tm(),
        end: event.end_date |> DateTime.to_unix() |> TMTime.unix_to_tm(),
        note: event |> build_note() |> to_palm_encoding(),
+       location: (event.location || "") |> to_palm_encoding(),
        event: event.start_date == event.end_date,
        rec_id: 0
      }}
+  end
+
+  defp build_note(%CalendarEvent{} = event) do
+    [
+      event.notes,
+      if(event.url, do: "URL: #{event.url}")
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join("\n")
+    |> String.slice(0, 4000)
   end
 
   defp build_note(%CalendarEvent{} = event) do
