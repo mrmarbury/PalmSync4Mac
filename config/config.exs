@@ -8,7 +8,10 @@ config :palm_sync_4_mac,
   ],
   # ash_repos: [PalmSync4Mac.Repo]
   ecto_repos: [PalmSync4Mac.Repo],
-  # Client name used for writing PalmInfo/UserInfo
-  palm_viewer_id: "PalmSync4Mac"
+  # Viewer ID written to Palm during sync to identify this client application.
+  # Must be a non-negative integer (unsigned long in pilot-link C API).
+  # 0x50534D = ASCII "PSM" (PalmSync4Mac), displayed as 5263635 decimal.
+  # The Palm OS uses this to track which application last synced with the device.
+  palm_viewer_id: 0x50534D
 
 import_config "#{config_env()}.exs"
