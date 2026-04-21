@@ -3,11 +3,10 @@ defmodule PalmSync4Mac.Pilot.SyncTest do
   Used for manual testing in the early stages of development
   """
 
+  alias PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker
   alias PalmSync4Mac.Pilot.SyncWorker.MainWorker
   alias PalmSync4Mac.Pilot.SyncWorker.MiscWorker
-  alias PalmSync4Mac.Pilot.SyncWorker.MiscWorker
   alias PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker
-  alias PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker
 
   # FIXME:#12 Remove this when the UI is ready and we have an integration test that can take this over
   def sync do

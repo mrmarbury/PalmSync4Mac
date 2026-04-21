@@ -341,8 +341,8 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
     end
 
     test "terminates all dynamic supervisor children" do
-      child_pid1 = spawn(fn -> Process.sleep(10000) end)
-      child_pid2 = spawn(fn -> Process.sleep(10000) end)
+      child_pid1 = spawn(fn -> Process.sleep(10_000) end)
+      child_pid2 = spawn(fn -> Process.sleep(10_000) end)
 
       patch(DynamicSup, :which_children, fn ->
         [
@@ -394,7 +394,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
     end
 
     test "terminates children even if disconnect fails" do
-      child_pid = spawn(fn -> Process.sleep(10000) end)
+      child_pid = spawn(fn -> Process.sleep(10_000) end)
 
       patch(PalmSync4Mac.Comms.Pidlp, :pilot_disconnect, fn _client_sd, _parent_sd ->
         {:error, -1, -1, "Disconnect failed"}

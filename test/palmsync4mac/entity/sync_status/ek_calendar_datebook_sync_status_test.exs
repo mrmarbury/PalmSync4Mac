@@ -5,9 +5,9 @@ defmodule PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatusTest do
   """
   use ExUnit.Case, async: false
 
-  alias PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus
   alias PalmSync4Mac.Entity.Device.PalmUser
   alias PalmSync4Mac.Entity.EventKit.CalendarEvent
+  alias PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus
 
   # Contract: EkCalendarDatebookSyncStatus — all invariants and error cases
 
