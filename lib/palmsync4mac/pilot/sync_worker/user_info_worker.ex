@@ -15,11 +15,11 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker do
     GenServer.start_link(__MODULE__, worker_info, name: __MODULE__)
   end
 
-  def pre_sync(username \\ nil) do
+  def pre_sync(username \\ nil, _client_sd \\ nil) do
     GenServer.call(__MODULE__, {:pre_sync, username})
   end
 
-  def post_sync do
+  def post_sync(_client_sd \\ nil) do
     GenServer.call(__MODULE__, :post_sync)
   end
 

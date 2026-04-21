@@ -18,7 +18,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MiscWorker do
     GenServer.start_link(__MODULE__, worker_info, name: __MODULE__)
   end
 
-  def time_sync do
+  def time_sync(_client_sd \\ nil) do
     GenServer.call(__MODULE__, :time_sync)
   end
 
