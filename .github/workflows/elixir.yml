@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libusb-1.0-0-dev
+        run: sudo apt-get update && sudo apt-get install -y libusb-1.0-0-dev libpisock-dev
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
         with:
@@ -38,6 +38,9 @@ jobs:
         run: mix deps.get
       - name: Compile
         run: mix compile
+        env:
+          PILOT_LINK_INCLUDE: /usr/include
+          PILOT_LINK_LIB_DIR: /usr/lib/x86_64-linux-gnu
       - name: Formatting
         run: mix format --check-formatted
       - name: Credo
