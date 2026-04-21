@@ -22,7 +22,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libusb-1.0-0-dev libpisock-dev
+        run: sudo apt-get update && sudo apt-get install -y libusb-1.0-0-dev autoconf automake libtool pkg-config
+      - name: Build pilot-link from source
+        run: |
+          git clone https://github.com/darrenl/pilot-link.git /tmp/pilot-link
+          cd /tmp/pilot-link
+          autoreconf -i
+          ./configure --prefix=/usr/local
+          make -j$(nproc)
+          sudo make install
+          sudo ldconfig
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
         with:
@@ -39,8 +48,8 @@ jobs:
       - name: Compile
         run: mix compile
         env:
-          PILOT_LINK_INCLUDE: /usr/include
-          PILOT_LINK_LIB_DIR: /usr/lib/x86_64-linux-gnu
+          PILOT_LINK_INCLUDE: /usr/local/include
+          PILOT_LINK_LIB_DIR: /usr/local/lib
       - name: Formatting
         run: mix format --check-formatted
       - name: Credo
