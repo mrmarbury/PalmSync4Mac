@@ -34,14 +34,15 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker do
     client_sd = state.client_sd
     Logger.info("Pre-sync: Reading user info for client_sd: #{client_sd}")
 
+    # Contract: UserInfoWorker — invariants (palm_user_id ALWAYS available on success)
     with {:ok, user_info} <- read_user_info(client_sd),
          with_username <- update_username(user_info, username),
          with_pc <- update_last_sync_pc(with_username),
          with_last_sync_date <- update_last_sync_date(with_pc),
          {:ok, _client_sd} <- write_user_info(client_sd, with_last_sync_date),
-         :ok <- write_to_db!(with_last_sync_date) do
+         {:ok, palm_user_id} <- write_to_db(with_last_sync_date) do
       new_state = %{state | user_info: with_last_sync_date}
-      {:reply, :ok, new_state}
+      {:reply, {:ok, palm_user_id}, new_state}
     else
       {:error, message} ->
         Logger.error("Error Pre-Syncing User Info")
@@ -53,13 +54,11 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker do
   def handle_call(:post_sync, _from, state) do
     client_sd = state.client_sd
 
-    Logger.info(
-      "Post-sync: Writing updated user info the the device with client_sd: #{client_sd}"
-    )
+    Logger.info("Post-sync: Writing updated user info to the device with client_sd: #{client_sd}")
 
     with with_successful_sync_date <- update_successful_sync_date(state.user_info),
          {:ok, _client_sd} <- write_user_info(client_sd, with_successful_sync_date),
-         :ok <- write_to_db!(with_successful_sync_date) do
+         {:ok, _palm_user_id} <- write_to_db(with_successful_sync_date) do
       new_state = %{state | user_info: with_successful_sync_date}
       {:reply, :ok, new_state}
     else

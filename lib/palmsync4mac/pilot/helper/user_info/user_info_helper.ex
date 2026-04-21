@@ -40,14 +40,29 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
       reraise error, __STACKTRACE__
   end
 
-  def write_to_db!(%PalmSync4Mac.Comms.Pidlp.PilotUser{} = user_info) do
-    case PalmSync4Mac.Entity.Device.PalmUser
-         |> Ash.Changeset.new()
-         |> Ash.Changeset.for_create(:create_or_update, Map.from_struct(user_info))
-         |> Ash.create!() do
-      %PalmSync4Mac.Entity.Device.PalmUser{} -> :ok
-      {:error, :stale_record} -> :ok
-      {:error, message} -> {:error, message}
+  # Contract: UserInfoWorker — invariants + error cases
+  def write_to_db(%PalmSync4Mac.Comms.Pidlp.PilotUser{} = user_info) do
+    PalmSync4Mac.Entity.Device.PalmUser
+    |> Ash.Changeset.for_create(:create_or_update, Map.from_struct(user_info))
+    |> Ash.create()
+    |> case do
+      {:ok, %PalmSync4Mac.Entity.Device.PalmUser{id: palm_user_id}} ->
+        {:ok, palm_user_id}
+
+      {:error, %Ash.Error.Changes.StaleRecord{}} ->
+        {:ok, get_existing_palm_user_id(user_info)}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp get_existing_palm_user_id(%PalmSync4Mac.Comms.Pidlp.PilotUser{username: username}) do
+    PalmSync4Mac.Entity.Device.PalmUser
+    |> Ash.get(username: username)
+    |> case do
+      {:ok, %PalmSync4Mac.Entity.Device.PalmUser{id: palm_user_id}} -> palm_user_id
+      {:error, _} -> nil
     end
   end
 

@@ -113,7 +113,7 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointment do
        end: event.end_date |> DateTime.to_unix() |> TMTime.unix_to_tm(),
        note: event |> build_note() |> to_palm_encoding(),
        event: event.start_date == event.end_date,
-       rec_id: event.rec_id
+       rec_id: 0
      }}
   end
 

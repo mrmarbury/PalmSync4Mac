@@ -8,7 +8,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
   require Logger
 
   alias PalmSync4Mac.Comms.Pidlp
-  alias PalmSync4Mac.Pilot.DynamicSyncWorkerSup
+  alias PalmSync4Mac.Pilot.DynamicSup
 
   typedstruct module: PilotSyncRequest do
     plugin(TypedStructLens)
@@ -17,7 +17,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
     field(:sync_queue, list(mfa()),
       default: [],
       doc:
-        "List of MFA to run in the main sync process. The client_sd is always added as a keyword to the args. There is no need to manually add it"
+        "List of MFA to run in the main sync process. The client_sd and palm_user_id are always added as the last two args. There is no need to manually add them"
     )
 
     field(:pre_sync_queue, list(mfa()),
@@ -73,7 +73,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
   end
 
   @impl true
-  def terminate(reason, state) do
+  def terminate(_reason, state) do
     Logger.info("Stopping #{__MODULE__} at the end of the sync")
     Pidlp.pilot_disconnect(state.client_sd, state.parent_sd)
     terminate_children()
@@ -97,20 +97,25 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
     end
   end
 
+  # Contract: MainWorker — pre_sync extracts palm_user_id, injects into sync_queue
   @impl true
   def handle_info(:sync, state) do
     Logger.info("Starting Sync 👷‍♀️")
 
-    queue =
-      state.pre_sync_queue
-      |> Enum.concat(state.sync_queue)
-      |> Enum.concat(state.post_sync_queue)
+    case run_pre_sync(state.pre_sync_queue, state.client_sd) do
+      {:ok, palm_user_id} ->
+        Logger.info("Pre-sync succeeded, palm_user_id: #{palm_user_id}")
 
-    Logger.info("Sync queue: #{inspect(queue)}")
+        sync_queue = inject_palm_user_id(state.sync_queue, state.client_sd, palm_user_id)
+        full_queue = sync_queue ++ state.post_sync_queue
+        do_sync(state, full_queue)
 
-    case do_sync(state, queue) do
-      :ok -> Logger.info("Sync finished.")
-      :empty_queue -> Logger.warning("Sync queue is empty, nothing to run")
+      {:error, reason} ->
+        Logger.error(
+          "Pre-sync failed: #{inspect(reason)}. Skipping sync queue, running post-sync only."
+        )
+
+        do_sync(state, state.post_sync_queue)
     end
 
     {:stop, :normal, state}
@@ -130,10 +135,10 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
     mfas
     |> Enum.map(fn {mod, _, _} -> mod end)
     |> Enum.uniq()
-    |> Enum.reduce([], fn mod, acc ->
+    |> Enum.reduce([], fn mod, _acc ->
       worker_struct = struct(mod, client_sd: client_sd)
 
-      case DynamicSupervisor.start_child(DynamicSyncWorkerSup, {mod, worker_struct}) do
+      case DynamicSup.start_child({mod, worker_struct}) do
         {:ok, _pid} ->
           Logger.info("Started sync worker #{mod}")
 
@@ -160,18 +165,50 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
     end
   end
 
+  # Contract: MainWorker — pre_sync returns palm_user_id or error
+  defp run_pre_sync([], _client_sd), do: {:ok, nil}
+
+  defp run_pre_sync(mfas, client_sd) do
+    start_queue(mfas, client_sd)
+
+    mfas
+    |> Enum.reduce_while(nil, fn {mod, fun, args}, _acc ->
+      full_args = args ++ [client_sd]
+
+      case apply(mod, fun, full_args) do
+        {:ok, palm_user_id} when is_binary(palm_user_id) ->
+          {:cont, palm_user_id}
+
+        {:ok, _} ->
+          {:cont, nil}
+
+        {:error, reason} ->
+          Logger.error("Pre-sync #{mod}.#{fun} failed: #{inspect(reason)}")
+          {:halt, {:error, reason}}
+      end
+    end)
+    |> case do
+      {:error, reason} -> {:error, reason}
+      palm_user_id when is_binary(palm_user_id) -> {:ok, palm_user_id}
+      _ -> {:ok, nil}
+    end
+  end
+
+  # Contract: MainWorker — client_sd and palm_user_id injected as last two args
+  def inject_palm_user_id(mfas, client_sd, palm_user_id) do
+    Enum.map(mfas, fn {mod, fun, args} ->
+      {mod, fun, args ++ [client_sd, palm_user_id]}
+    end)
+  end
+
   defp terminate_children do
-    worker_list =
-      DynamicSupervisor.which_children(DynamicSyncWorkerSup)
+    worker_list = DynamicSup.which_children()
 
     Enum.each(worker_list, fn {_id, pid, _type, name} ->
       Logger.info("Terminating worker #{Enum.at(name, 0)}, with pid #{inspect(pid)}")
-      # It either kills the process or there is none to kill.
-      _any =
-        DynamicSupervisor.terminate_child(DynamicSyncWorkerSup, pid)
+      _any = DynamicSup.terminate_child(pid)
     end)
 
-    # That's fine
     :ok
   end
 end
