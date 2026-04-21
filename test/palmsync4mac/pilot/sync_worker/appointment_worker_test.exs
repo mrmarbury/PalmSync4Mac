@@ -45,9 +45,13 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
     Ecto.Adapters.SQL.Sandbox.allow(PalmSync4Mac.Repo, self(), pid)
 
     on_exit(fn ->
-      case Process.whereis(AppointmentWorker) do
-        nil -> :ok
-        pid -> GenServer.stop(pid)
+      try do
+        case Process.whereis(AppointmentWorker) do
+          nil -> :ok
+          pid -> GenServer.stop(pid, :normal, 5000)
+        end
+      catch
+        :exit, _ -> :ok
       end
     end)
 
