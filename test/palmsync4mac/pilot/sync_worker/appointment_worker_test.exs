@@ -158,7 +158,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
     end
   end
 
-  describe "sync_to_palm/2 — Contract: AppointmentWorker — join row creation" do
+  describe "sync_to_palm/1 — Contract: AppointmentWorker — join row creation" do
     test "creates join row with rec_id on success", %{palm_user: palm_user} do
       patch(PalmSync4Mac.Comms.Pidlp, :open_db, fn _sd, _card, _mode, _name ->
         {:ok, 42, 1}
@@ -170,7 +170,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
 
       patch(PalmSync4Mac.Comms.Pidlp, :close_db, fn _sd, _db -> {:ok, 42} end)
 
-      result = AppointmentWorker.sync_to_palm(42, palm_user.id)
+      result = AppointmentWorker.sync_to_palm(palm_user.id)
       assert result == :ok
 
       {:ok, rows} = Ash.read(EkCalendarDatebookSyncStatus)
@@ -190,7 +190,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
 
       patch(PalmSync4Mac.Comms.Pidlp, :close_db, fn _sd, _db -> {:ok, 42} end)
 
-      result = AppointmentWorker.sync_to_palm(42, palm_user.id)
+      result = AppointmentWorker.sync_to_palm(palm_user.id)
       assert result == :ok
 
       {:ok, rows} = Ash.read(EkCalendarDatebookSyncStatus)
@@ -206,7 +206,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
         {:error, 42, -1, "db open failed"}
       end)
 
-      result = AppointmentWorker.sync_to_palm(42, palm_user.id)
+      result = AppointmentWorker.sync_to_palm(palm_user.id)
       assert result == :ok
 
       {:ok, rows} = Ash.read(EkCalendarDatebookSyncStatus)
@@ -235,7 +235,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
       })
       |> Ash.create()
 
-      result = AppointmentWorker.sync_to_palm(42, palm_user.id)
+      result = AppointmentWorker.sync_to_palm(palm_user.id)
       assert result == :ok
     end
   end

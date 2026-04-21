@@ -12,16 +12,16 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerC4Test do
 
   # Contract: MainWorker — palm_user_id injection invariants
 
-  describe "inject_palm_user_id/3 — Contract: MainWorker — client_sd and palm_user_id injected as last two args" do
-    test "client_sd and palm_user_id are appended as last two args" do
+  describe "inject_palm_user_id/2 — Contract: MainWorker — palm_user_id injected as last arg" do
+    test "palm_user_id is appended as last arg" do
       mfas = [{SomeMod, :some_fun, [1, 2]}]
-      result = MainWorker.inject_palm_user_id(mfas, 5, "test-uuid-1234")
+      result = MainWorker.inject_palm_user_id(mfas, "test-uuid-1234")
 
-      assert [{SomeMod, :some_fun, [1, 2, 5, "test-uuid-1234"]}] = result
+      assert [{SomeMod, :some_fun, [1, 2, "test-uuid-1234"]}] = result
     end
 
     test "inject_palm_user_id with empty queue returns empty list" do
-      result = MainWorker.inject_palm_user_id([], 5, "test-uuid-1234")
+      result = MainWorker.inject_palm_user_id([], "test-uuid-1234")
       assert result == []
     end
 
@@ -31,26 +31,26 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerC4Test do
         {ModB, :fun_b, [20, 30]}
       ]
 
-      result = MainWorker.inject_palm_user_id(mfas, 5, "uuid-abc")
+      result = MainWorker.inject_palm_user_id(mfas, "uuid-abc")
 
       assert [
-               {ModA, :fun_a, [10, 5, "uuid-abc"]},
-               {ModB, :fun_b, [20, 30, 5, "uuid-abc"]}
+               {ModA, :fun_a, [10, "uuid-abc"]},
+               {ModB, :fun_b, [20, 30, "uuid-abc"]}
              ] = result
     end
 
     test "inject_palm_user_id with MFA having empty args list" do
       mfas = [{SomeMod, :some_fun, []}]
-      result = MainWorker.inject_palm_user_id(mfas, 5, "uuid-single")
+      result = MainWorker.inject_palm_user_id(mfas, "uuid-single")
 
-      assert [{SomeMod, :some_fun, [5, "uuid-single"]}] = result
+      assert [{SomeMod, :some_fun, ["uuid-single"]}] = result
     end
 
-    test "palm_user_id is always the LAST arg (after client_sd)" do
+    test "palm_user_id is always the LAST arg" do
       mfas = [{Foo, :bar, [1]}]
-      result = MainWorker.inject_palm_user_id(mfas, 42, "uuid-last")
+      result = MainWorker.inject_palm_user_id(mfas, "uuid-last")
 
-      assert [{Foo, :bar, [1, 42, "uuid-last"]}] = result
+      assert [{Foo, :bar, [1, "uuid-last"]}] = result
     end
   end
 
@@ -70,7 +70,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerC4Test do
       defmodule C4.FailingPreSync do
         defstruct client_sd: -1
 
-        def pre_sync(_client_sd) do
+        def pre_sync do
           send(Process.whereis(:c4_test_pid) || self(), :pre_sync_called)
           {:error, "user info failed"}
         end
@@ -79,7 +79,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerC4Test do
       defmodule C4.ShouldNotRunSync do
         defstruct client_sd: -1
 
-        def sync(_client_sd, _palm_user_id) do
+        def sync(_palm_user_id) do
           send(Process.whereis(:c4_test_pid) || self(), :sync_should_not_run)
           :ok
         end
@@ -113,11 +113,11 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerC4Test do
       Process.unregister(:c4_test_pid)
     end
 
-    test "runs sync_queue with injected client_sd and palm_user_id when pre_sync succeeds" do
+    test "runs sync_queue with injected palm_user_id when pre_sync succeeds" do
       defmodule C4.SuccessfulPreSync do
         defstruct client_sd: -1
 
-        def pre_sync(_client_sd) do
+        def pre_sync do
           send(Process.whereis(:c4_test_pid2) || self(), :pre_sync_called)
           {:ok, "palm-user-uuid-123"}
         end
@@ -126,10 +126,10 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerC4Test do
       defmodule C4.SyncWithPalmUserId do
         defstruct client_sd: -1
 
-        def sync(client_sd, palm_user_id) do
+        def sync(palm_user_id) do
           send(
             Process.whereis(:c4_test_pid2) || self(),
-            {:sync_called, client_sd, palm_user_id}
+            {:sync_called, palm_user_id}
           )
 
           :ok
@@ -158,7 +158,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerC4Test do
       MainWorker.handle_info(:sync, state)
 
       assert_received :pre_sync_called
-      assert_received {:sync_called, 5, "palm-user-uuid-123"}
+      assert_received {:sync_called, "palm-user-uuid-123"}
       assert_received :post_sync_called
 
       Process.unregister(:c4_test_pid2)
@@ -168,7 +168,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerC4Test do
       defmodule C4.PreSyncForPost do
         defstruct client_sd: -1
 
-        def pre_sync(_client_sd) do
+        def pre_sync do
           {:ok, "uuid-post-test"}
         end
       end

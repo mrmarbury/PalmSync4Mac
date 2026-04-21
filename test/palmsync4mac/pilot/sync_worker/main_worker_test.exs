@@ -183,7 +183,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
   defmodule ExecuteTest1 do
     defstruct client_sd: -1
 
-    def test_func(_client_sd, _palm_user_id) do
+    def test_func(_palm_user_id) do
       send(Process.whereis(:test_pid_exe1) || self(), :test_func_called)
       :ok
     end
@@ -192,12 +192,12 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
   defmodule ExecuteTest2 do
     defstruct client_sd: -1
 
-    def first_func(_client_sd, _palm_user_id) do
+    def first_func(_palm_user_id) do
       send(Process.whereis(:test_pid_exe2) || self(), {:called, :first})
       :ok
     end
 
-    def second_func(_client_sd, _palm_user_id) do
+    def second_func(_palm_user_id) do
       send(Process.whereis(:test_pid_exe2) || self(), {:called, :second})
       :ok
     end
@@ -206,13 +206,13 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
   defmodule ExecuteTest3 do
     defstruct client_sd: -1
 
-    def pre_func(_client_sd) do
+    def pre_func do
       send(Process.whereis(:test_pid_exe3) || self(), {:order, :pre})
       {:ok, "palm-user-uuid"}
     end
 
-    def sync_func(client_sd, palm_user_id) do
-      send(Process.whereis(:test_pid_exe3) || self(), {:order, :sync, client_sd, palm_user_id})
+    def sync_func(palm_user_id) do
+      send(Process.whereis(:test_pid_exe3) || self(), {:order, :sync, palm_user_id})
       :ok
     end
 
@@ -225,12 +225,12 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
   defmodule ExecuteTest5 do
     defstruct client_sd: -1
 
-    def error_func(_client_sd, _palm_user_id) do
+    def error_func(_palm_user_id) do
       send(Process.whereis(:test_pid_exe5) || self(), :error_called)
       {:error, "something went wrong"}
     end
 
-    def success_func(_client_sd, _palm_user_id) do
+    def success_func(_palm_user_id) do
       send(Process.whereis(:test_pid_exe5) || self(), :success_called)
       :ok
     end
@@ -296,7 +296,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       MainWorker.handle_info(:sync, state)
 
       assert_received {:order, :pre}
-      assert_received {:order, :sync, 5, "palm-user-uuid"}
+      assert_received {:order, :sync, "palm-user-uuid"}
       assert_received {:order, :post}
       Process.unregister(:test_pid_exe3)
     end

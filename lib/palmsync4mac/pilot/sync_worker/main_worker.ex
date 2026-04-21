@@ -17,7 +17,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
     field(:sync_queue, list(mfa()),
       default: [],
       doc:
-        "List of MFA to run in the main sync process. The client_sd and palm_user_id are always added as the last two args. There is no need to manually add them"
+        "List of MFA to run in the main sync process. palm_user_id is always added as the last arg. Workers receive client_sd from GenServer state"
     )
 
     field(:pre_sync_queue, list(mfa()),
@@ -25,7 +25,6 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
       doc: """
       List of MFA that should always be included in the sync before the main sync happens.
       These are usually tasks to prepare the main sync. Like fetching user info
-      the client_sd is always added as a keyword to the args. There is no need to manually add it
       """
     )
 
@@ -34,7 +33,6 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
       doc: """
       List of MFA that should always be included in the sync after the main sync happens.
       These items are usually used for cleanup on the Palm and tasks that need to be run after the main sync.
-      the client_sd is always added as a keyword to the args. There is no need to manually add it
       """
     )
 
@@ -106,7 +104,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
       {:ok, palm_user_id} ->
         Logger.info("Pre-sync succeeded, palm_user_id: #{palm_user_id}")
 
-        sync_queue = inject_palm_user_id(state.sync_queue, state.client_sd, palm_user_id)
+        sync_queue = inject_palm_user_id(state.sync_queue, palm_user_id)
         full_queue = sync_queue ++ state.post_sync_queue
         do_sync(state, full_queue)
 
@@ -173,9 +171,10 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
 
     mfas
     |> Enum.reduce_while(nil, fn {mod, fun, args}, _acc ->
-      full_args = args ++ [client_sd]
+      case apply(mod, fun, args) do
+        :ok ->
+          {:cont, nil}
 
-      case apply(mod, fun, full_args) do
         {:ok, palm_user_id} when is_binary(palm_user_id) ->
           {:cont, palm_user_id}
 
@@ -194,10 +193,10 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
     end
   end
 
-  # Contract: MainWorker — client_sd and palm_user_id injected as last two args
-  def inject_palm_user_id(mfas, client_sd, palm_user_id) do
+  # Contract: MainWorker — palm_user_id injected as last arg
+  def inject_palm_user_id(mfas, palm_user_id) do
     Enum.map(mfas, fn {mod, fun, args} ->
-      {mod, fun, args ++ [client_sd, palm_user_id]}
+      {mod, fun, args ++ [palm_user_id]}
     end)
   end
 

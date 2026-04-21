@@ -23,9 +23,9 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
     GenServer.start_link(__MODULE__, worker_info, name: __MODULE__)
   end
 
-  # Contract: AppointmentWorker — palm_user_id as LAST argument after client_sd
-  def sync_to_palm(client_sd, palm_user_id) do
-    GenServer.call(__MODULE__, {:sync_to_palm, client_sd, palm_user_id})
+  # Contract: AppointmentWorker — palm_user_id as LAST argument
+  def sync_to_palm(palm_user_id) do
+    GenServer.call(__MODULE__, {:sync_to_palm, palm_user_id})
   end
 
   @impl true
@@ -35,7 +35,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
   end
 
   @impl true
-  def handle_call({:sync_to_palm, client_sd, palm_user_id}, _from, state) do
+  def handle_call({:sync_to_palm, palm_user_id}, _from, state) do
     Logger.info("Syncing to Palm for palm_user_id: #{palm_user_id}")
 
     case list_unsynced_for_device(palm_user_id) do
@@ -44,7 +44,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
         {:reply, :ok, state}
 
       {:ok, calendar_events} ->
-        write_records(calendar_events, client_sd, palm_user_id)
+        write_records(calendar_events, state.client_sd, palm_user_id)
         {:reply, :ok, state}
 
       {:error, reason} ->
