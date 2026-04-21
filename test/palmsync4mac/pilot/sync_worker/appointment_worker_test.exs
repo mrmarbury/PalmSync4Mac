@@ -64,7 +64,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
       calendar_event: calendar_event
     } do
       {:ok, results} = AppointmentWorker.list_unsynced_for_device(palm_user.id)
-      event_ids = Enum.map(results, & &1.id)
+      event_ids = Enum.map(results, fn {event, _rec_id} -> event.id end)
       assert calendar_event.id in event_ids
     end
 
@@ -83,7 +83,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
       |> Ash.create()
 
       {:ok, results} = AppointmentWorker.list_unsynced_for_device(palm_user.id)
-      event_ids = Enum.map(results, & &1.id)
+      event_ids = Enum.map(results, fn {event, _rec_id} -> event.id end)
       assert calendar_event.id in event_ids
     end
 
@@ -104,7 +104,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
       assert calendar_event.version > -1
 
       {:ok, results} = AppointmentWorker.list_unsynced_for_device(palm_user.id)
-      event_ids = Enum.map(results, & &1.id)
+      event_ids = Enum.map(results, fn {event, _rec_id} -> event.id end)
       assert calendar_event.id in event_ids
     end
 
@@ -123,7 +123,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
       |> Ash.create()
 
       {:ok, results} = AppointmentWorker.list_unsynced_for_device(palm_user.id)
-      event_ids = Enum.map(results, & &1.id)
+      event_ids = Enum.map(results, fn {event, _rec_id} -> event.id end)
       refute calendar_event.id in event_ids
     end
 
@@ -153,7 +153,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
       |> Ash.create()
 
       {:ok, results} = AppointmentWorker.list_unsynced_for_device(other_user.id)
-      event_ids = Enum.map(results, & &1.id)
+      event_ids = Enum.map(results, fn {event, _rec_id} -> event.id end)
       refute calendar_event.id in event_ids
     end
   end

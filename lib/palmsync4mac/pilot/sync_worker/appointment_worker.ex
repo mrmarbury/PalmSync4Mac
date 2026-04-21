@@ -54,11 +54,12 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
   end
 
   # Contract: AppointmentWorker — 3-case unsynced query
-  # 1. No join row exists (new event)
-  # 2. rec_id == 0 (previously failed)
-  # 3. CalendarEvent.version > last_synced_version (event updated)
+  # 1. No join row exists (new event, rec_id = 0)
+  # 2. rec_id == 0 (previously failed write)
+  # 3. CalendarEvent.version > last_synced_version (event updated, use existing rec_id)
   @doc """
-  Lists CalendarEvents that need syncing for a specific Palm device.
+  Lists CalendarEvents that need syncing for a specific Palm device,
+  paired with their existing rec_id from the join table (0 if never synced).
   """
   def list_unsynced_for_device(palm_user_id) do
     with {:ok, all_events} <- Ash.read(CalendarEvent),
@@ -77,6 +78,15 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
             _ -> false
           end
         end)
+        |> Enum.map(fn event ->
+          rec_id =
+            case Map.get(synced_map, event.id) do
+              %{rec_id: id} -> id
+              _ -> 0
+            end
+
+          {event, rec_id}
+        end)
 
       {:ok, unsynced}
     end
@@ -88,13 +98,15 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
     |> Ash.read()
   end
 
-  defp write_records(calendar_events, client_sd, palm_user_id) do
+  defp write_records(calendar_events_with_rec_ids, client_sd, palm_user_id) do
     mode = OpenDbMode.build([:read, :write])
 
     case Pidlp.open_db(client_sd, 0, mode, "DatebookDB") do
       {:ok, _client_sd, db_handle} ->
-        calendar_events
-        |> Enum.map(&DatebookAppointment.from_calendar_event/1)
+        calendar_events_with_rec_ids
+        |> Enum.map(fn {event, rec_id} ->
+          DatebookAppointment.from_calendar_event(event, rec_id)
+        end)
         |> Enum.each(&write_record_and_update_join(&1, client_sd, db_handle, palm_user_id))
 
         Pidlp.close_db(client_sd, db_handle)
@@ -103,7 +115,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
       {:error, _client_sd, _result, message} ->
         Logger.error("Failed to open DatebookDB: #{message}")
 
-        Enum.each(calendar_events, fn %CalendarEvent{} = event ->
+        Enum.each(calendar_events_with_rec_ids, fn {%CalendarEvent{} = event, _rec_id} ->
           upsert_join_row(palm_user_id, event.id, 0, event.version, false)
         end)
     end

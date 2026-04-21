@@ -108,9 +108,9 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointment do
     )
   end
 
-  @spec from_calendar_event(CalendarEvent.t()) ::
+  @spec from_calendar_event(CalendarEvent.t(), non_neg_integer()) ::
           {CalendarEvent.t(), DatebookAppointment.t()}
-  def from_calendar_event(%CalendarEvent{} = event) do
+  def from_calendar_event(%CalendarEvent{} = event, rec_id \\ 0) do
     {event,
      %__MODULE__{
        description: event.title |> to_palm_encoding(),
@@ -119,7 +119,7 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointment do
        note: event |> build_note() |> to_palm_encoding(),
        location: (event.location || "") |> to_palm_encoding(),
        event: event.start_date == event.end_date,
-       rec_id: 0
+       rec_id: rec_id
      }}
   end
 
