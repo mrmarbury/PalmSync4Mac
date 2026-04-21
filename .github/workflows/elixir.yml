@@ -25,7 +25,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libusb-1.0-0-dev autoconf automake libtool pkg-config
       - name: Build pilot-link from source
         run: |
-          git clone https://${{ secrets.PILOT_LINK_PAT }}@github.com/darrenl/pilot-link.git /tmp/pilot-link
+          git clone https://github.com/mrmarbury/pilot-link.git /tmp/pilot-link
           cd /tmp/pilot-link
           autoreconf -i
           ./configure --prefix=/usr/local
