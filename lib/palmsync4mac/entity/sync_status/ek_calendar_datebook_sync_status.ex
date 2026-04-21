@@ -12,8 +12,8 @@ defmodule PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus do
     repo(PalmSync4Mac.Repo)
   end
 
+  alias PalmSync4Mac.Entity.Device.PalmUser
   alias PalmSync4Mac.Entity.EventKit.CalendarEvent
-  alias PalmSync4Mac.Entity.Devive.PalmUser
 
   identities do
     identity(
@@ -33,7 +33,7 @@ defmodule PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus do
       accept([
         :palm_user_id,
         :calendar_event_id,
-        :datebook_rec_id,
+        :rec_id,
         :last_synced_version,
         :last_sync_success
       ])
@@ -43,30 +43,15 @@ defmodule PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus do
   attributes do
     uuid_primary_key(:id)
 
-    attribute(:palm_device_uuid, :uuid) do
-      description("The UUID of the synced Palm device entity")
-      allow_nil?(false)
-      public?(true)
-    end
-
-    attribute(:calendar_event_uuid, :uuid) do
-      description("The UUID of the synced EK calendar event entity")
-      allow_nil?(false)
-      public?(true)
-    end
-
-    attribute(:datebook_rec_id, :integer) do
-      description("Datebook Palm record  ID. 0 = not yet written to device")
+    attribute(:rec_id, :integer) do
+      description("Palm record ID. 0 = not yet written to device")
       allow_nil?(false)
       default(0)
       public?(true)
     end
 
     attribute(:last_synced, :utc_datetime) do
-      description(
-        "The last time the event synced to the Palm Device. Will be UTC now every time the entry is updated/created"
-      )
-
+      description("Auto-timestamped on every create or update")
       writable?(false)
       default(&DateTime.utc_now/0)
       update_default(&DateTime.utc_now/0)
@@ -75,8 +60,12 @@ defmodule PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus do
     end
 
     attribute(:last_synced_version, :integer) do
-      description("The version of the ek calendar event that was last synced to the Palm device")
-      allow_nil?(true)
+      description(
+        "The version of the calendar event that was last synced. 0 = initial, never synced"
+      )
+
+      allow_nil?(false)
+      default(0)
       public?(true)
     end
 
@@ -90,12 +79,10 @@ defmodule PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus do
 
   relationships do
     belongs_to :palm_user, PalmUser do
-      attribute(:palm_user_id)
       allow_nil?(false)
     end
 
     belongs_to :calendar_event, CalendarEvent do
-      attribute(:calendar_event_id)
       allow_nil?(false)
     end
   end

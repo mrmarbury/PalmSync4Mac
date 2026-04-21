@@ -41,3 +41,9 @@ ek_*_interface
 ek_interface
 .DS_Store
 .vscode
+
+# agent internal state
+.sisyphus/
+
+# compiled NIF artifacts
+priv/bundlex/
