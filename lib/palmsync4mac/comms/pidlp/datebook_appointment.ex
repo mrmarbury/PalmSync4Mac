@@ -98,7 +98,7 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointment do
 
     field(:location, String.t(),
       default: "",
-      doc: "Location of the appointment. Sent as a separate field in PalmOS5 Calendar format"
+      doc: "Location of the appointment"
     )
 
     field(:rec_id, non_neg_integer(),
