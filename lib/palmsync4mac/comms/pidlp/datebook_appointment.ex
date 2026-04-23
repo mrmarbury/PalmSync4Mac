@@ -133,18 +133,6 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointment do
     |> String.slice(0, 4000)
   end
 
-  defp build_note(%CalendarEvent{} = event) do
-    [
-      event.notes,
-      if(event.location, do: "Location: #{event.location}"),
-      if(event.url, do: "URL: #{event.url}")
-    ]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join("\n")
-    # truncate to roughly 4k
-    |> String.slice(0, 4000)
-  end
-
   defp to_palm_encoding(string) when is_binary(string) do
     case Codepagex.from_string(string, :iso_8859_1) do
       {:ok, encoded} -> encoded

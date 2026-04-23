@@ -1,15 +1,13 @@
 defmodule PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatusTest do
   @moduledoc """
-  Contract 1 tests — EkCalendarDatebookSyncStatus Ash Resource.
-  TDD: These tests define the contract invariants and error cases.
+  Tests for EkCalendarDatebookSyncStatus Ash Resource — verifies the join table
+  that tracks per-device sync status for each calendar event.
   """
   use ExUnit.Case, async: false
 
   alias PalmSync4Mac.Entity.Device.PalmUser
   alias PalmSync4Mac.Entity.EventKit.CalendarEvent
   alias PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus
-
-  # Contract: EkCalendarDatebookSyncStatus — all invariants and error cases
 
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(PalmSync4Mac.Repo)

@@ -1,5 +1,10 @@
-defmodule PalmSync4Mac.Pilot.DynamicSup do
-  @moduledoc false
+defmodule PalmSync4Mac.Pilot.SyncWorkers do
+  @moduledoc """
+  Convenience wrapper for managing sync worker processes under DynamicSyncWorkerSup.
+
+  Provides a cleaner API for starting, listing, and terminating sync workers
+  without repeatedly passing the DynamicSyncWorkerSup name.
+  """
 
   alias PalmSync4Mac.Pilot.DynamicSyncWorkerSup
 

@@ -31,7 +31,6 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorkerTest do
   end
 
   describe "pre_sync returns palm_user_id" do
-    # Contract: UserInfoWorker — palm_user_id ALWAYS available on success
     test "returns {:ok, palm_user_id} on success" do
       fake_user = %PilotUser{
         username: "test_user",
@@ -57,7 +56,6 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorkerTest do
       assert String.match?(palm_user_id, ~r/^[0-9a-f]{8}-[0-9a-f]{4}-/)
     end
 
-    # Contract: UserInfoWorker — error case (NIF read_user_info fails)
     test "returns {:error, _} when read_user_info fails" do
       patch(Pidlp, :read_user_info, fn _sd ->
         {:error, 42, "connection lost"}
@@ -68,7 +66,6 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorkerTest do
       assert {:error, _} = result
     end
 
-    # Contract: UserInfoWorker — empty username generates random
     test "generates random username when device returns empty" do
       fake_user = %PilotUser{
         username: "",
@@ -92,7 +89,6 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorkerTest do
       assert {:ok, _palm_user_id} = result
     end
 
-    # Contract: UserInfoWorker — same username upserts to same PalmUser
     test "calling pre_sync twice with same username returns same palm_user_id" do
       fake_user = %PilotUser{
         username: "stable_user",
@@ -119,7 +115,6 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorkerTest do
   end
 
   describe "post_sync" do
-    # Contract: UserInfoWorker — post_sync returns :ok (not palm_user_id)
     test "returns :ok on success" do
       fake_user = %PilotUser{
         username: "post_test_user",

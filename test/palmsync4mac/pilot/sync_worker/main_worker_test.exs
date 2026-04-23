@@ -2,9 +2,9 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
   use ExUnit.Case, async: false
   use Patch
 
-  alias PalmSync4Mac.Pilot.DynamicSup
   alias PalmSync4Mac.Pilot.SyncWorker.MainWorker
   alias PalmSync4Mac.Pilot.SyncWorker.MainWorker.PilotSyncRequest
+  alias PalmSync4Mac.Pilot.SyncWorkers
 
   @moduletag :capture_log
 
@@ -161,7 +161,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
         {:ok, 5, 6}
       end)
 
-      patch(DynamicSup, :which_children, fn -> [] end)
+      patch(SyncWorkers, :which_children, fn -> [] end)
 
       :ok
     end
@@ -242,8 +242,8 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
         {:ok, 5, 6}
       end)
 
-      patch(DynamicSup, :which_children, fn -> [] end)
-      patch(DynamicSup, :start_child, fn _child_spec -> {:ok, self()} end)
+      patch(SyncWorkers, :which_children, fn -> [] end)
+      patch(SyncWorkers, :start_child, fn _child_spec -> {:ok, self()} end)
 
       :ok
     end
@@ -328,7 +328,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
         {:ok, client_sd, parent_sd}
       end)
 
-      patch(DynamicSup, :which_children, fn -> [] end)
+      patch(SyncWorkers, :which_children, fn -> [] end)
 
       state = %PilotSyncRequest{
         client_sd: 42,
@@ -344,14 +344,14 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       child_pid1 = spawn(fn -> Process.sleep(10_000) end)
       child_pid2 = spawn(fn -> Process.sleep(10_000) end)
 
-      patch(DynamicSup, :which_children, fn ->
+      patch(SyncWorkers, :which_children, fn ->
         [
           {:undefined, child_pid1, :worker, [SomeWorker]},
           {:undefined, child_pid2, :worker, [OtherWorker]}
         ]
       end)
 
-      patch(DynamicSup, :terminate_child, fn pid ->
+      patch(SyncWorkers, :terminate_child, fn pid ->
         send(self(), {:child_terminated, pid})
         :ok
       end)
@@ -372,9 +372,9 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
     end
 
     test "handles case with no children gracefully" do
-      patch(DynamicSup, :which_children, fn -> [] end)
+      patch(SyncWorkers, :which_children, fn -> [] end)
 
-      patch(DynamicSup, :terminate_child, fn _pid ->
+      patch(SyncWorkers, :terminate_child, fn _pid ->
         send(self(), :should_not_be_called)
         :ok
       end)
@@ -400,11 +400,11 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
         {:error, -1, -1, "Disconnect failed"}
       end)
 
-      patch(DynamicSup, :which_children, fn ->
+      patch(SyncWorkers, :which_children, fn ->
         [{:undefined, child_pid, :worker, [SomeWorker]}]
       end)
 
-      patch(DynamicSup, :terminate_child, fn pid ->
+      patch(SyncWorkers, :terminate_child, fn pid ->
         send(self(), {:child_terminated, pid})
         :ok
       end)
@@ -425,7 +425,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
         {:ok, client_sd, parent_sd}
       end)
 
-      patch(DynamicSup, :which_children, fn -> [] end)
+      patch(SyncWorkers, :which_children, fn -> [] end)
 
       state = %PilotSyncRequest{
         client_sd: 5,

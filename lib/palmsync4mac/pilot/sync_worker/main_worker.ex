@@ -8,7 +8,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
   require Logger
 
   alias PalmSync4Mac.Comms.Pidlp
-  alias PalmSync4Mac.Pilot.DynamicSup
+  alias PalmSync4Mac.Pilot.SyncWorkers
 
   typedstruct module: PilotSyncRequest do
     plugin(TypedStructLens)
@@ -137,7 +137,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
     |> Enum.reduce([], fn mod, _acc ->
       worker_struct = struct(mod, client_sd: client_sd)
 
-      case DynamicSup.start_child({mod, worker_struct}) do
+      case SyncWorkers.start_child({mod, worker_struct}) do
         {:ok, _pid} ->
           Logger.info("Started sync worker #{mod}")
 
@@ -207,11 +207,11 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
   end
 
   defp terminate_children do
-    worker_list = DynamicSup.which_children()
+    worker_list = SyncWorkers.which_children()
 
     Enum.each(worker_list, fn {_id, pid, _type, name} ->
       Logger.info("Terminating worker #{Enum.at(name, 0)}, with pid #{inspect(pid)}")
-      _any = DynamicSup.terminate_child(pid)
+      _any = SyncWorkers.terminate_child(pid)
     end)
 
     :ok

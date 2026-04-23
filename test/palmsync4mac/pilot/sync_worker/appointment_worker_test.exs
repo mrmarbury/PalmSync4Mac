@@ -1,7 +1,8 @@
 defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
   @moduledoc """
-  Contract 3 tests — AppointmentWorker.sync_to_palm rewrite.
-  TDD: These tests define the contract invariants and error cases.
+  Tests for AppointmentWorker.sync_to_palm — the per-device sync logic that
+  uses the EkCalendarDatebookSyncStatus join table to track which events have
+  been synced to each Palm device.
   """
   use ExUnit.Case, async: false
   use Patch
@@ -10,8 +11,6 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
   alias PalmSync4Mac.Entity.EventKit.CalendarEvent
   alias PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus
   alias PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker
-
-  # Contract: AppointmentWorker — all invariants and error cases
 
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(PalmSync4Mac.Repo)
@@ -58,7 +57,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
     {:ok, palm_user: palm_user, calendar_event: calendar_event}
   end
 
-  describe "list_unsynced_for_device/1 — Contract: AppointmentWorker — 3-case unsynced query" do
+  describe "list_unsynced_for_device/1" do
     test "returns events with no join row (new events)", %{
       palm_user: palm_user,
       calendar_event: calendar_event
@@ -68,7 +67,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
       assert calendar_event.id in event_ids
     end
 
-    test "returns events with rec_id=0 (previously failed)", %{
+    test "returns events with join row rec_id=0 after failed sync attempt", %{
       palm_user: palm_user,
       calendar_event: calendar_event
     } do
@@ -158,7 +157,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
     end
   end
 
-  describe "sync_to_palm/1 — Contract: AppointmentWorker — join row creation" do
+  describe "sync_to_palm/1 — join row creation" do
     test "creates join row with rec_id on success", %{palm_user: palm_user} do
       patch(PalmSync4Mac.Comms.Pidlp, :open_db, fn _sd, _card, _mode, _name ->
         {:ok, 42, 1}

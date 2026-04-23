@@ -12,7 +12,7 @@ defmodule PalmSync4Mac.Pilot.SyncTest do
   def sync do
     pre_queue = [
       {MiscWorker, :time_sync, []},
-      {UserInfoWorker, :pre_sync, ["TungC"]}
+      {UserInfoWorker, :pre_sync, []}
     ]
 
     post_queue = [

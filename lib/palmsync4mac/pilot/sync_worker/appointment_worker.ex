@@ -99,12 +99,12 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
     |> Ash.read()
   end
 
-  defp write_records(calendar_events_with_rec_ids, client_sd, palm_user_id) do
+  defp write_records(calendar_events, client_sd, palm_user_id) do
     mode = OpenDbMode.build([:read, :write])
 
     case Pidlp.open_db(client_sd, 0, mode, "DatebookDB") do
       {:ok, _client_sd, db_handle} ->
-        calendar_events_with_rec_ids
+        calendar_events
         |> Enum.map(fn {event, rec_id} ->
           DatebookAppointment.from_calendar_event(event, rec_id)
         end)
@@ -117,7 +117,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
       {:error, _client_sd, _result, message} ->
         Logger.error("Failed to open DatebookDB: #{message}")
 
-        Enum.each(calendar_events_with_rec_ids, fn {%CalendarEvent{} = event, _rec_id} ->
+        Enum.each(calendar_events, fn {%CalendarEvent{} = event, _rec_id} ->
           upsert_join_row(palm_user_id, event.id, 0, event.version, false)
         end)
     end
