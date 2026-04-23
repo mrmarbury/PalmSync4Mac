@@ -2,8 +2,6 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
   @moduledoc """
   Sync Worker to sync Apple calendar dates/Palm appointments.
   Uses EkCalendarDatebookSyncStatus join table for per-device sync tracking.
-
-  Contract: AppointmentWorker — sync_to_palm
   """
 
   use GenServer
@@ -23,7 +21,10 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
     GenServer.start_link(__MODULE__, worker_info, name: __MODULE__)
   end
 
-  # Contract: AppointmentWorker — palm_user_id as LAST argument
+  @doc """
+  Main sync entry point. palm_user_id is injected as the last argument by MainWorker
+  after UserInfoWorker extracts it during pre_sync.
+  """
   def sync_to_palm(palm_user_id) do
     GenServer.call(__MODULE__, {:sync_to_palm, palm_user_id})
   end
@@ -53,13 +54,13 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
     end
   end
 
-  # Contract: AppointmentWorker — 3-case unsynced query
-  # 1. No join row exists (new event, rec_id = 0)
-  # 2. rec_id == 0 (previously failed write)
-  # 3. CalendarEvent.version > last_synced_version (event updated, use existing rec_id)
   @doc """
-  Lists CalendarEvents that need syncing for a specific Palm device,
-  paired with their existing rec_id from the join table (0 if never synced).
+  Lists CalendarEvents that need syncing for a specific Palm device.
+
+  Returns events that match any of these conditions:
+  1. No join row exists yet (new event, will use rec_id=0 to create new Palm record)
+  2. rec_id == 0 (previous write failed, retry with rec_id=0)
+  3. CalendarEvent.version > last_synced_version (event was updated, use existing rec_id)
   """
   def list_unsynced_for_device(palm_user_id) do
     with {:ok, all_events} <- Ash.read(CalendarEvent),
@@ -111,7 +112,8 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
 
         Pidlp.close_db(client_sd, db_handle)
 
-      # Contract: AppointmentWorker — open_db failure creates failed join rows for ALL pending events
+      # If we can't open the database, mark all pending events as failed
+      # so we don't lose track of what needs syncing
       {:error, _client_sd, _result, message} ->
         Logger.error("Failed to open DatebookDB: #{message}")
 
@@ -121,7 +123,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
     end
   end
 
-  # Contract: AppointmentWorker — write success/failure creates join rows
+  # Each write attempt creates or updates a join row to track sync status
   defp write_record_and_update_join(
          {%CalendarEvent{} = calendar_event, %DatebookAppointment{} = datebook_appointment},
          client_sd,
@@ -141,7 +143,6 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
     end
   end
 
-  # Contract: AppointmentWorker — every sync attempt creates or updates a join row
   defp upsert_join_row(palm_user_id, calendar_event_id, rec_id, last_synced_version, success) do
     EkCalendarDatebookSyncStatus
     |> Ash.Changeset.for_create(:create_or_update, %{

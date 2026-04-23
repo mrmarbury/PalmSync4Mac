@@ -40,7 +40,13 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
       reraise error, __STACKTRACE__
   end
 
-  # Contract: UserInfoWorker — invariants + error cases
+  @doc """
+  Persists the PalmUser to the database, returning the palm_user_id.
+
+  Uses upsert on username - if the user already exists, returns the existing ID
+  rather than creating a duplicate. This ensures each device has a stable ID
+  for associating sync records.
+  """
   def write_to_db(%PalmSync4Mac.Comms.Pidlp.PilotUser{} = user_info) do
     PalmSync4Mac.Entity.Device.PalmUser
     |> Ash.Changeset.for_create(:create_or_update, Map.from_struct(user_info))

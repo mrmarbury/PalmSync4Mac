@@ -34,7 +34,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker do
     client_sd = state.client_sd
     Logger.info("Pre-sync: Reading user info for client_sd: #{client_sd}")
 
-    # Contract: UserInfoWorker — invariants (palm_user_id ALWAYS available on success)
+    # On success, palm_user_id is guaranteed to be available for subsequent workers
     with {:ok, user_info} <- read_user_info(client_sd),
          with_username <- update_username(user_info, username),
          with_pc <- update_last_sync_pc(with_username),

@@ -95,7 +95,8 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
     end
   end
 
-  # Contract: MainWorker — pre_sync extracts palm_user_id, injects into sync_queue
+  # pre_sync returns the palm_user_id from UserInfoWorker, which we inject into all
+  # subsequent sync_queue MFAs so workers can associate records with the right device
   @impl true
   def handle_info(:sync, state) do
     Logger.info("Starting Sync 👷‍♀️")
@@ -163,7 +164,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
     end
   end
 
-  # Contract: MainWorker — pre_sync returns palm_user_id or error
+  # Returns {:ok, palm_user_id} if any pre_sync MFA returns one, {:ok, nil} if empty, {:error, reason} on failure
   defp run_pre_sync([], _client_sd), do: {:ok, nil}
 
   defp run_pre_sync(mfas, client_sd) do
@@ -193,7 +194,12 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
     end
   end
 
-  # Contract: MainWorker — palm_user_id injected as last arg
+  @doc """
+  Appends palm_user_id as the last argument to each MFA in the queue.
+
+  Workers need palm_user_id to associate sync records with the correct device,
+  but it's only available after pre_sync runs. This function injects it after extraction.
+  """
   def inject_palm_user_id(mfas, palm_user_id) do
     Enum.map(mfas, fn {mod, fun, args} ->
       {mod, fun, args ++ [palm_user_id]}
