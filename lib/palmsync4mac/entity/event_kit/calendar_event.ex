@@ -11,7 +11,7 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
   alias Ash.Error.Changes.InvalidChanges
   alias Ash.Error.Changes.StaleRecord
 
-  alias PalmSync4Mac.Entity.Devive.PalmUser
+  alias PalmSync4Mac.Entity.Device.PalmUser
   alias PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus
 
   sqlite do

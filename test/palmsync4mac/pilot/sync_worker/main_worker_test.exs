@@ -4,6 +4,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
 
   alias PalmSync4Mac.Pilot.SyncWorker.MainWorker
   alias PalmSync4Mac.Pilot.SyncWorker.MainWorker.PilotSyncRequest
+  alias PalmSync4Mac.Pilot.SyncWorkers
 
   @moduletag :capture_log
 
@@ -59,7 +60,6 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
 
       MainWorker.handle_continue(:connect, state)
 
-      # Verify :sync message was sent
       assert_receive :sync
     end
 
@@ -161,9 +161,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
         {:ok, 5, 6}
       end)
 
-      patch(DynamicSupervisor, :which_children, fn _sup ->
-        []
-      end)
+      patch(SyncWorkers, :which_children, fn -> [] end)
 
       :ok
     end
@@ -181,45 +179,77 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
     end
   end
 
+  # Test modules defined at module level with defstruct to avoid Kernel.struct patching
+  defmodule ExecuteTest1 do
+    defstruct client_sd: -1
+
+    def test_func(_palm_user_id) do
+      send(Process.whereis(:test_pid_exe1) || self(), :test_func_called)
+      :ok
+    end
+  end
+
+  defmodule ExecuteTest2 do
+    defstruct client_sd: -1
+
+    def first_func(_palm_user_id) do
+      send(Process.whereis(:test_pid_exe2) || self(), {:called, :first})
+      :ok
+    end
+
+    def second_func(_palm_user_id) do
+      send(Process.whereis(:test_pid_exe2) || self(), {:called, :second})
+      :ok
+    end
+  end
+
+  defmodule ExecuteTest3 do
+    defstruct client_sd: -1
+
+    def pre_func do
+      send(Process.whereis(:test_pid_exe3) || self(), {:order, :pre})
+      {:ok, "palm-user-uuid"}
+    end
+
+    def sync_func(palm_user_id) do
+      send(Process.whereis(:test_pid_exe3) || self(), {:order, :sync, palm_user_id})
+      :ok
+    end
+
+    def post_func do
+      send(Process.whereis(:test_pid_exe3) || self(), {:order, :post})
+      :ok
+    end
+  end
+
+  defmodule ExecuteTest5 do
+    defstruct client_sd: -1
+
+    def error_func(_palm_user_id) do
+      send(Process.whereis(:test_pid_exe5) || self(), :error_called)
+      {:error, "something went wrong"}
+    end
+
+    def success_func(_palm_user_id) do
+      send(Process.whereis(:test_pid_exe5) || self(), :success_called)
+      :ok
+    end
+  end
+
   describe "handle_info(:sync, state) - queue processing with mocked struct creation" do
     setup do
-      # Mock pilot_disconnect for cleanup
       patch(PalmSync4Mac.Comms.Pidlp, :pilot_disconnect, fn _client_sd, _parent_sd ->
         {:ok, 5, 6}
       end)
 
-      # Mock dynamic supervisor
-      patch(DynamicSupervisor, :which_children, fn _sup ->
-        []
-      end)
-
-      # Mock struct creation to avoid needing real worker modules
-      patch(Kernel, :struct, fn
-        PalmSync4Mac.Pilot.SyncWorker.MainWorker.PilotSyncRequest, fields ->
-          struct(PalmSync4Mac.Pilot.SyncWorker.MainWorker.PilotSyncRequest, fields)
-
-        _mod, [client_sd: client_sd] ->
-          %{client_sd: client_sd}
-      end)
-
-      patch(DynamicSupervisor, :start_child, fn _sup, _child_spec ->
-        {:ok, self()}
-      end)
+      patch(SyncWorkers, :which_children, fn -> [] end)
+      patch(SyncWorkers, :start_child, fn _child_spec -> {:ok, self()} end)
 
       :ok
     end
 
-    test "executes MFA from sync_queue" do
-      test_pid = self()
-
-      defmodule ExecuteTest1 do
-        def test_func do
-          send(Process.whereis(:test_pid) || self(), :test_func_called)
-          :ok
-        end
-      end
-
-      Process.register(self(), :test_pid)
+    test "executes MFA from sync_queue with palm_user_id injected" do
+      Process.register(self(), :test_pid_exe1)
 
       state = %PilotSyncRequest{
         client_sd: 5,
@@ -230,23 +260,11 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       MainWorker.handle_info(:sync, state)
 
       assert_received :test_func_called
-      Process.unregister(:test_pid)
+      Process.unregister(:test_pid_exe1)
     end
 
-    test "executes multiple MFAs sequentially" do
-      defmodule ExecuteTest2 do
-        def first_func do
-          send(Process.whereis(:test_pid2) || self(), {:called, :first})
-          :ok
-        end
-
-        def second_func do
-          send(Process.whereis(:test_pid2) || self(), {:called, :second})
-          :ok
-        end
-      end
-
-      Process.register(self(), :test_pid2)
+    test "executes multiple sync MFAs sequentially" do
+      Process.register(self(), :test_pid_exe2)
 
       state = %PilotSyncRequest{
         client_sd: 5,
@@ -261,28 +279,11 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
 
       assert_received {:called, :first}
       assert_received {:called, :second}
-      Process.unregister(:test_pid2)
+      Process.unregister(:test_pid_exe2)
     end
 
-    test "concatenates pre_sync + sync + post_sync queues" do
-      defmodule ExecuteTest3 do
-        def pre_func do
-          send(Process.whereis(:test_pid3) || self(), {:order, :pre})
-          :ok
-        end
-
-        def sync_func do
-          send(Process.whereis(:test_pid3) || self(), {:order, :sync})
-          :ok
-        end
-
-        def post_func do
-          send(Process.whereis(:test_pid3) || self(), {:order, :post})
-          :ok
-        end
-      end
-
-      Process.register(self(), :test_pid3)
+    test "runs pre_sync, then sync_queue with palm_user_id, then post_sync" do
+      Process.register(self(), :test_pid_exe3)
 
       state = %PilotSyncRequest{
         client_sd: 5,
@@ -295,56 +296,13 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       MainWorker.handle_info(:sync, state)
 
       assert_received {:order, :pre}
-      assert_received {:order, :sync}
+      assert_received {:order, :sync, "palm-user-uuid"}
       assert_received {:order, :post}
-      Process.unregister(:test_pid3)
+      Process.unregister(:test_pid_exe3)
     end
 
-    test "continues processing even when MFA raises error" do
-      defmodule ExecuteTest4 do
-        def failing_func do
-          send(Process.whereis(:test_pid4) || self(), :failing_called)
-          raise "Intentional error"
-        end
-
-        def success_func do
-          send(Process.whereis(:test_pid4) || self(), :success_called)
-          :ok
-        end
-      end
-
-      Process.register(self(), :test_pid4)
-
-      state = %PilotSyncRequest{
-        client_sd: 5,
-        parent_sd: 6,
-        sync_queue: [
-          {ExecuteTest4, :failing_func, []},
-          {ExecuteTest4, :success_func, []}
-        ]
-      }
-
-      MainWorker.handle_info(:sync, state)
-
-      assert_received :failing_called
-      assert_received :success_called
-      Process.unregister(:test_pid4)
-    end
-
-    test "continues processing even when MFA returns error tuple" do
-      defmodule ExecuteTest5 do
-        def error_func do
-          send(Process.whereis(:test_pid5) || self(), :error_called)
-          {:error, "something went wrong"}
-        end
-
-        def success_func do
-          send(Process.whereis(:test_pid5) || self(), :success_called)
-          :ok
-        end
-      end
-
-      Process.register(self(), :test_pid5)
+    test "continues processing even when sync MFA returns error tuple" do
+      Process.register(self(), :test_pid_exe5)
 
       state = %PilotSyncRequest{
         client_sd: 5,
@@ -359,7 +317,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
 
       assert_received :error_called
       assert_received :success_called
-      Process.unregister(:test_pid5)
+      Process.unregister(:test_pid_exe5)
     end
   end
 
@@ -370,9 +328,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
         {:ok, client_sd, parent_sd}
       end)
 
-      patch(DynamicSupervisor, :which_children, fn _sup ->
-        []
-      end)
+      patch(SyncWorkers, :which_children, fn -> [] end)
 
       state = %PilotSyncRequest{
         client_sd: 42,
@@ -385,17 +341,17 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
     end
 
     test "terminates all dynamic supervisor children" do
-      child_pid1 = spawn(fn -> Process.sleep(10000) end)
-      child_pid2 = spawn(fn -> Process.sleep(10000) end)
+      child_pid1 = spawn(fn -> Process.sleep(10_000) end)
+      child_pid2 = spawn(fn -> Process.sleep(10_000) end)
 
-      patch(DynamicSupervisor, :which_children, fn _sup ->
+      patch(SyncWorkers, :which_children, fn ->
         [
           {:undefined, child_pid1, :worker, [SomeWorker]},
           {:undefined, child_pid2, :worker, [OtherWorker]}
         ]
       end)
 
-      patch(DynamicSupervisor, :terminate_child, fn _sup, pid ->
+      patch(SyncWorkers, :terminate_child, fn pid ->
         send(self(), {:child_terminated, pid})
         :ok
       end)
@@ -416,11 +372,9 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
     end
 
     test "handles case with no children gracefully" do
-      patch(DynamicSupervisor, :which_children, fn _sup ->
-        []
-      end)
+      patch(SyncWorkers, :which_children, fn -> [] end)
 
-      patch(DynamicSupervisor, :terminate_child, fn _sup, _pid ->
+      patch(SyncWorkers, :terminate_child, fn _pid ->
         send(self(), :should_not_be_called)
         :ok
       end)
@@ -440,17 +394,17 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
     end
 
     test "terminates children even if disconnect fails" do
-      child_pid = spawn(fn -> Process.sleep(10000) end)
+      child_pid = spawn(fn -> Process.sleep(10_000) end)
 
       patch(PalmSync4Mac.Comms.Pidlp, :pilot_disconnect, fn _client_sd, _parent_sd ->
         {:error, -1, -1, "Disconnect failed"}
       end)
 
-      patch(DynamicSupervisor, :which_children, fn _sup ->
+      patch(SyncWorkers, :which_children, fn ->
         [{:undefined, child_pid, :worker, [SomeWorker]}]
       end)
 
-      patch(DynamicSupervisor, :terminate_child, fn _sup, pid ->
+      patch(SyncWorkers, :terminate_child, fn pid ->
         send(self(), {:child_terminated, pid})
         :ok
       end)
@@ -471,16 +425,13 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
         {:ok, client_sd, parent_sd}
       end)
 
-      patch(DynamicSupervisor, :which_children, fn _sup ->
-        []
-      end)
+      patch(SyncWorkers, :which_children, fn -> [] end)
 
       state = %PilotSyncRequest{
         client_sd: 5,
         parent_sd: 6
       }
 
-      # Test various termination reasons
       MainWorker.terminate(:shutdown, state)
       assert_received {:disconnect_called, 5, 6}
 

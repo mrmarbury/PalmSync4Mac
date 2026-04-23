@@ -35,7 +35,7 @@ defmodule PalmSync4Mac.MixProject do
       {:unifex, "~> 1.2"},
       {:timex, "~> 3.7"},
       {:enum_type, "~> 1.1"},
-      {:typedstruct, "~> 0.5"},
+      {:typedstruct, "~> 0.5", app: false},
       {:typed_struct_lens, "~> 0.1"},
       {:typed_struct_nimble_options, "~> 0.1"},
       {:codepagex, "~> 0.1.13"},

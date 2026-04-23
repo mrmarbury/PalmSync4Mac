@@ -23,7 +23,8 @@ defmodule PalmSync4Mac.Comms.Pidlp.PilotUser do
     )
 
     field(:viewer_id, non_neg_integer(),
-      doc: "Identifies the Client used for the last sync",
+      doc:
+        "Identifies the Client used for the last sync. unsigned long in pilot-link C API. Config default: 0x50534D (ASCII 'PSM' = PalmSync4Mac)",
       default: Application.fetch_env!(:palm_sync_4_mac, :palm_viewer_id)
     )
 

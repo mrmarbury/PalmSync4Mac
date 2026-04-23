@@ -3,19 +3,16 @@ defmodule PalmSync4Mac.Pilot.SyncTest do
   Used for manual testing in the early stages of development
   """
 
+  alias PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker
   alias PalmSync4Mac.Pilot.SyncWorker.MainWorker
   alias PalmSync4Mac.Pilot.SyncWorker.MiscWorker
-  alias PalmSync4Mac.Pilot.SyncWorker.MiscWorker
   alias PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker
-  alias PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker
-
-  @sync_expired true
 
   # FIXME:#12 Remove this when the UI is ready and we have an integration test that can take this over
   def sync do
     pre_queue = [
       {MiscWorker, :time_sync, []},
-      {UserInfoWorker, :pre_sync, ["PalmTX"]}
+      {UserInfoWorker, :pre_sync, []}
     ]
 
     post_queue = [
@@ -23,7 +20,7 @@ defmodule PalmSync4Mac.Pilot.SyncTest do
     ]
 
     main_queue = [
-      {AppointmentWorker, :sync_to_palm, [@sync_expired]}
+      {AppointmentWorker, :sync_to_palm, []}
     ]
 
     psr = %PalmSync4Mac.Pilot.SyncWorker.MainWorker.PilotSyncRequest{

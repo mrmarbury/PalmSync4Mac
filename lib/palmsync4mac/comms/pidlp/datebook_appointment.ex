@@ -96,6 +96,11 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointment do
         "Note text of the appointment. Default is empty string which becomes NULL in C and therefore won't create a note on the Palm device"
     )
 
+    field(:location, String.t(),
+      default: "",
+      doc: "Location of the appointment"
+    )
+
     field(:rec_id, non_neg_integer(),
       default: 0,
       doc:
@@ -103,29 +108,28 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointment do
     )
   end
 
-  @spec from_calendar_event(CalendarEvent.t()) ::
+  @spec from_calendar_event(CalendarEvent.t(), non_neg_integer()) ::
           {CalendarEvent.t(), DatebookAppointment.t()}
-  def from_calendar_event(%CalendarEvent{} = event) do
+  def from_calendar_event(%CalendarEvent{} = event, rec_id \\ 0) do
     {event,
      %__MODULE__{
        description: event.title |> to_palm_encoding(),
        begin: event.start_date |> DateTime.to_unix() |> TMTime.unix_to_tm(),
        end: event.end_date |> DateTime.to_unix() |> TMTime.unix_to_tm(),
        note: event |> build_note() |> to_palm_encoding(),
+       location: (event.location || "") |> to_palm_encoding(),
        event: event.start_date == event.end_date,
-       rec_id: event.rec_id
+       rec_id: rec_id
      }}
   end
 
   defp build_note(%CalendarEvent{} = event) do
     [
       event.notes,
-      if(event.location, do: "Location: #{event.location}"),
       if(event.url, do: "URL: #{event.url}")
     ]
     |> Enum.reject(&is_nil/1)
     |> Enum.join("\n")
-    # truncate to roughly 4k
     |> String.slice(0, 4000)
   end
 

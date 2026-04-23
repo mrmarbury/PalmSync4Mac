@@ -126,16 +126,6 @@
     {
       "default": "nil",
       "size": null,
-      "type": "utc_datetime",
-      "source": "sync_to_palm_date",
-      "references": null,
-      "allow_nil?": true,
-      "generated?": false,
-      "primary_key?": false
-    },
-    {
-      "default": "nil",
-      "size": null,
       "type": "text",
       "source": "apple_event_id",
       "references": null,
@@ -152,20 +142,10 @@
       "allow_nil?": false,
       "generated?": false,
       "primary_key?": false
-    },
-    {
-      "default": "nil",
-      "size": null,
-      "type": "bigint",
-      "source": "rec_id",
-      "references": null,
-      "allow_nil?": false,
-      "generated?": false,
-      "primary_key?": false
     }
   ],
   "table": "calendar_event",
-  "hash": "C3D2835377CA054D77E3D273341822F764AA35AD6E3496026AB3C4D7125012FA",
+  "hash": "5A9D4917760121B152803A8FE1682A4AFBFC83FB305D8DA4C01AB56A6421C5A7",
   "repo": "Elixir.PalmSync4Mac.Repo",
   "strict?": false,
   "identities": [
@@ -180,8 +160,8 @@
   ],
   "multitenancy": {
     "global": null,
-    "strategy": null,
-    "attribute": null
+    "attribute": null,
+    "strategy": null
   },
   "base_filter": null,
   "custom_indexes": [],
