@@ -3,6 +3,7 @@ import EventKit
 class MockEventStore: EKEventStore {
     var shouldGrantAccess: Bool = false
     var mockCalendars: [EKCalendar] = []
+    var mockEvents: [EKEvent] = []
 
     override func requestFullAccessToEvents() async throws -> Bool {
         return shouldGrantAccess
@@ -19,6 +20,6 @@ class MockEventStore: EKEventStore {
     }
 
     override func events(matching predicate: NSPredicate) -> [EKEvent] {
-        return []
+        return mockEvents
     }
 }
