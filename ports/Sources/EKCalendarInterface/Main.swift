@@ -2,16 +2,21 @@ import EventKit
 import Foundation
 import os
 
-let store = EKEventStore()
+var store = EKEventStore()
+var outputHandle = FileHandle.standardOutput
 let logger = Logger(subsystem: "com.palmsync.EKCalendarInterface", category: "Port")
 
-// Function to send messages with a 4-byte length prefix
-func sendMessage(_ message: String, to output: FileHandle = FileHandle.standardOutput) {
+/// Sends a message with a 4-byte big-endian length prefix followed by UTF-8 data.
+/// - Parameters:
+///   - message: The string to send.
+///   - output: The file handle to write to. Defaults to `outputHandle` (stdout in production).
+func sendMessage(_ message: String, to output: FileHandle? = nil) {
+    let target = output ?? outputHandle
     guard let data = message.data(using: .utf8) else { return }
     var length = UInt32(data.count).bigEndian
     let lengthData = Data(bytes: &length, count: 4)
     let outputData = lengthData + data
-    output.write(outputData)
+    target.write(outputData)
 }
 
 func readMessage(from input: FileHandle = FileHandle.standardInput) -> [String: Any]? {
@@ -96,7 +101,7 @@ func getCalendarEvents(days: Int, calendar: String?, requestId: Int?) async {
             "url": event.url?.absoluteString ?? "",
             "location": event.location ?? "",
             "notes": event.notes ?? "",
-            "apple_event_id": event.eventIdentifier!,
+            "apple_event_id": event.eventIdentifier ?? "",
             "last_modified": ISO8601DateFormatter().string(from: event.lastModifiedDate ?? Date()),
                 // we are not supporting attachments for now
         ]
@@ -135,36 +140,44 @@ func getSelectedCalendars(named calendarName: String?, store: EKEventStore) -> [
     return selectedCalendars.isEmpty ? nil : selectedCalendars
 }
 
+func processMessage(_ message: [String: Any]) -> String {
+    if let command = message["command"] as? String {
+        let requestId = message["request_id"] as? Int
+        logger.info("Processing command: \(command, privacy: .public), request_id: \(requestId ?? -1)")
+
+        switch command {
+        case "get_events":
+            let days = message["days"] as? Int ?? 13
+            let calendar = message["calendar"] as? String ?? nil
+            logger.info("get_events - days: \(days), calendar: \(calendar ?? "nil", privacy: .public)")
+            Task {
+                await getCalendarEvents(
+                    days: days, calendar: calendar, requestId: requestId)
+            }
+            return ""
+        default:
+            logger.warning("Unknown command received: \(command, privacy: .public)")
+            return "{\"error\": \"unknown_command\", \"request_id\": \(requestId ?? -1)}"
+        }
+    } else {
+        logger.error("Invalid message format - missing 'command' field")
+        return "{\"error\": \"invalid_message_format\"}"
+    }
+}
+
 func startMainLoop() {
     DispatchQueue.global(qos: .userInitiated).async {
         while let message = readMessage() {
             logger.info("Received message: \(message, privacy: .public)")
-
-            if let command = message["command"] as? String {
-                let requestId = message["request_id"] as? Int
-                logger.info("Processing command: \(command, privacy: .public), request_id: \(requestId ?? -1)")
-
-                switch command {
-                case "get_events":
-                    let days = message["days"] as? Int ?? 13  // Default to 14 days if not specified
-                    let calendar = message["calendar"] as? String ?? nil
-                    logger.info("get_events - days: \(days), calendar: \(calendar ?? "nil", privacy: .public)")
-                    Task {
-                        await getCalendarEvents(
-                            days: days, calendar: calendar, requestId: requestId)
-                    }
-                default:
-                    logger.warning("Unknown command received: \(command, privacy: .public)")
-                    sendMessage(
-                        "{\"error\": \"unknown_command\", \"request_id\": \(requestId ?? -1)}")
-                }
-            } else {
-                logger.error("Invalid message format - missing 'command' field")
-                sendMessage("{\"error\": \"invalid_message_format\"}")
-            }
+            let _ = processMessage(message)
         }
     }
     RunLoop.main.run()
 }
 
-startMainLoop()
+@main
+struct EKCalendarInterfaceMain {
+    static func main() {
+        startMainLoop()
+    }
+}
