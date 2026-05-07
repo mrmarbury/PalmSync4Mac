@@ -6,6 +6,10 @@ var store = EKEventStore()
 var outputHandle = FileHandle.standardOutput
 let logger = Logger(subsystem: "com.palmsync.EKCalendarInterface", category: "Port")
 
+/// Sends a message with a 4-byte big-endian length prefix followed by UTF-8 data.
+/// - Parameters:
+///   - message: The string to send.
+///   - output: The file handle to write to. Defaults to `outputHandle` (stdout in production).
 func sendMessage(_ message: String, to output: FileHandle? = nil) {
     let target = output ?? outputHandle
     guard let data = message.data(using: .utf8) else { return }
@@ -139,20 +143,24 @@ func getSelectedCalendars(named calendarName: String?, store: EKEventStore) -> [
 func processMessage(_ message: [String: Any]) -> String {
     if let command = message["command"] as? String {
         let requestId = message["request_id"] as? Int
+        logger.info("Processing command: \(command, privacy: .public), request_id: \(requestId ?? -1)")
 
         switch command {
         case "get_events":
             let days = message["days"] as? Int ?? 13
             let calendar = message["calendar"] as? String ?? nil
+            logger.info("get_events - days: \(days), calendar: \(calendar ?? "nil", privacy: .public)")
             Task {
                 await getCalendarEvents(
                     days: days, calendar: calendar, requestId: requestId)
             }
             return ""
         default:
+            logger.warning("Unknown command received: \(command, privacy: .public)")
             return "{\"error\": \"unknown_command\", \"request_id\": \(requestId ?? -1)}"
         }
     } else {
+        logger.error("Invalid message format - missing 'command' field")
         return "{\"error\": \"invalid_message_format\"}"
     }
 }
