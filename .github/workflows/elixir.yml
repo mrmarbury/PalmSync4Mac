@@ -60,5 +60,9 @@ jobs:
           mix ash_sqlite.migrate
         env:
           MIX_ENV: test
+      - name: Run C unit tests
+        run: make -C c_src test
+        env:
+          PILOT_LINK_INCLUDE: /usr/local/include
       - name: Run tests
         run: mix test
