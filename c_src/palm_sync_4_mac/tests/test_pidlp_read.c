@@ -24,7 +24,7 @@ void test_read_sysinfo_success(void) {
     mock_state.mock_sys_info.romVersion = 0x05000000;
     mock_state.mock_sys_info.locale = 1;
     mock_state.mock_sys_info.prodIDLength = 5;
-    strncpy(mock_state.mock_sys_info.prodID, "TestP", 5);
+    strncpy(mock_state.mock_sys_info.prodID, "TestP", sizeof(mock_state.mock_sys_info.prodID) - 1);
     mock_state.mock_sys_info.dlpMajorVersion = 1;
     mock_state.mock_sys_info.dlpMinorVersion = 4;
     mock_state.mock_sys_info.compatMajorVersion = 1;
