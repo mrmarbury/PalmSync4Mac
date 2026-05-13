@@ -70,106 +70,7 @@ struct tm *timehtm_list_to_tm_list(timehtm *src, unsigned int count) {
   return result;
 }
 
-/* enum repeatTypes map_repeat_type(enum RepeatType_t val) {
-  switch (val) {
-  case REPEAT_TYPE_REPEATNONE:
-    return repeatNone;
-  case REPEAT_TYPE_REPEATDAILY:
-    return repeatDaily;
-  case REPEAT_TYPE_REPEATWEEKLY:
-    return repeatWeekly;
-  case REPEAT_TYPE_REPEATMONTHLYBYDAY:
-    return repeatMonthlyByDay;
-  case REPEAT_TYPE_REPEATMONTHLYBYDATE:
-    return repeatMonthlyByDate;
-  case REPEAT_TYPE_REPEATYEARLY:
-    return repeatYearly;
-  default:
-    return repeatNone; // Fallback or error case
-  }
-}
 
-DayOfMonthType map_day_of_month(enum DayOfMonthType_t val) {
-  switch (val) {
-  case DAY_OF_MONTH_TYPE_DOM_1ST_SUN:
-    return dom1stSun;
-  case DAY_OF_MONTH_TYPE_DOM_1ST_MON:
-    return dom1stMon;
-  case DAY_OF_MONTH_TYPE_DOM_1ST_TUE:
-    return dom1stTue;
-  case DAY_OF_MONTH_TYPE_DOM_1ST_WEN:
-    return dom1stWen;
-  case DAY_OF_MONTH_TYPE_DOM_1ST_THU:
-    return dom1stThu;
-  case DAY_OF_MONTH_TYPE_DOM_1ST_FRI:
-    return dom1stFri;
-  case DAY_OF_MONTH_TYPE_DOM_1ST_SAT:
-    return dom1stSat;
-
-  case DAY_OF_MONTH_TYPE_DOM_2ND_SUN:
-    return dom2ndSun;
-  case DAY_OF_MONTH_TYPE_DOM_2ND_MON:
-    return dom2ndMon;
-  case DAY_OF_MONTH_TYPE_DOM_2ND_TUE:
-    return dom2ndTue;
-  case DAY_OF_MONTH_TYPE_DOM_2ND_WEN:
-    return dom2ndWen;
-  case DAY_OF_MONTH_TYPE_DOM_2ND_THU:
-    return dom2ndThu;
-  case DAY_OF_MONTH_TYPE_DOM_2ND_FRI:
-    return dom2ndFri;
-  case DAY_OF_MONTH_TYPE_DOM_2ND_SAT:
-    return dom2ndSat;
-
-  case DAY_OF_MONTH_TYPE_DOM_3RD_SUN:
-    return dom3rdSun;
-  case DAY_OF_MONTH_TYPE_DOM_3RD_MON:
-    return dom3rdMon;
-  case DAY_OF_MONTH_TYPE_DOM_3RD_TUE:
-    return dom3rdTue;
-  case DAY_OF_MONTH_TYPE_DOM_3RD_WEN:
-    return dom3rdWen;
-  case DAY_OF_MONTH_TYPE_DOM_3RD_THU:
-    return dom3rdThu;
-  case DAY_OF_MONTH_TYPE_DOM_3RD_FRI:
-    return dom3rdFri;
-  case DAY_OF_MONTH_TYPE_DOM_3RD_SAT:
-    return dom3rdSat;
-
-  case DAY_OF_MONTH_TYPE_DOM_4TH_SUN:
-    return dom4thSun;
-  case DAY_OF_MONTH_TYPE_DOM_4TH_MON:
-    return dom4thMon;
-  case DAY_OF_MONTH_TYPE_DOM_4TH_TUE:
-    return dom4thTue;
-  case DAY_OF_MONTH_TYPE_DOM_4TH_WEN:
-    return dom4thWen;
-  case DAY_OF_MONTH_TYPE_DOM_4TH_THU:
-    return dom4thThu;
-  case DAY_OF_MONTH_TYPE_DOM_4TH_FRI:
-    return dom4thFri;
-  case DAY_OF_MONTH_TYPE_DOM_4TH_SAT:
-    return dom4thSat;
-
-  case DAY_OF_MONTH_TYPE_DOM_LAST_SUN:
-    return domLastSun;
-  case DAY_OF_MONTH_TYPE_DOM_LAST_MON:
-    return domLastMon;
-  case DAY_OF_MONTH_TYPE_DOM_LAST_TUE:
-    return domLastTue;
-  case DAY_OF_MONTH_TYPE_DOM_LAST_WEN:
-    return domLastWen;
-  case DAY_OF_MONTH_TYPE_DOM_LAST_THU:
-    return domLastThu;
-  case DAY_OF_MONTH_TYPE_DOM_LAST_FRI:
-    return domLastFri;
-  case DAY_OF_MONTH_TYPE_DOM_LAST_SAT:
-    return domLastSat;
-
-  default:
-    return dom1stSun; // or handle error
-  }
-} */
 /*pilot-connect*/
 UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port, int wait_timeout) {
   UNIFEX_TERM res_term;
@@ -358,12 +259,10 @@ UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port, int wait_timeout) {
       bProceed = 0;
     }
   }
-  /* Removed debug message, maybe add notification framework to invoke here */
-  /*        printf("Opening counduit...\n"); */
-  dlp_OpenConduit(client_sd);
-  /* Why should parent_sd remain open after connect? Nobody receives it. */
-  /*   pi_close(parent_sd); */
-  res_term = pilot_connect_result_ok(env, client_sd, parent_sd);
+  if (bProceed) {
+    dlp_OpenConduit(client_sd);
+    res_term = pilot_connect_result_ok(env, client_sd, parent_sd);
+  }
   return res_term;
 }
 
@@ -549,12 +448,10 @@ UNIFEX_TERM write_datebook_record(UnifexEnv *env, int client_sd, int dbhandle, a
   pilot_appointment.alarm = (int)appointment.alarm;
   pilot_appointment.advance = (int)appointment.alarm_advance;
   pilot_appointment.advanceUnits = (int)appointment.alarm_advance_units;
-  /* pilot_appointment.repeatType = map_repeat_type(appointment.repeat_type); */
   pilot_appointment.repeatType = appointment.repeat_type;
   pilot_appointment.repeatEnd = timehtm_to_tm(appointment.repeat_end);
   pilot_appointment.repeatFrequency = (int)appointment.repeat_frequency;
   pilot_appointment.repeatForever = (int)appointment.repeat_forever;
-  /* pilot_appointment.repeatDay = map_day_of_month(appointment.repeat_day); */
   pilot_appointment.repeatDay = appointment.repeat_day;
 
   for (int i = 0; i < 7; i++) {
@@ -572,58 +469,11 @@ UNIFEX_TERM write_datebook_record(UnifexEnv *env, int client_sd, int dbhandle, a
 
   rec_id = (recordid_t) appointment.rec_id;
 
-  // some debugging printfs
-  // printf("\n--- BEGIN PACK DEBUG ---\n");
-  // printf("event: %d\n", pilot_appointment.event);
-  // printf("begin: %02d-%02d-%04d %02d:%02d:%02d\n",
-  //        pilot_appointment.begin.tm_mday, pilot_appointment.begin.tm_mon + 1,
-  //        pilot_appointment.begin.tm_year + 1900,
-  //        pilot_appointment.begin.tm_hour, pilot_appointment.begin.tm_min,
-  //        pilot_appointment.begin.tm_sec);
-  // printf("end: %02d-%02d-%04d %02d:%02d:%02d\n", pilot_appointment.end.tm_mday,
-  //        pilot_appointment.end.tm_mon + 1, pilot_appointment.end.tm_year + 1900,
-  //        pilot_appointment.end.tm_hour, pilot_appointment.end.tm_min,
-  //        pilot_appointment.end.tm_sec);
-  // printf("repeatEnd: %02d-%02d-%04d %02d:%02d:%02d\n",
-  //        pilot_appointment.repeatEnd.tm_mday,
-  //        pilot_appointment.repeatEnd.tm_mon + 1,
-  //        pilot_appointment.repeatEnd.tm_year + 1900,
-  //        pilot_appointment.repeatEnd.tm_hour,
-  //        pilot_appointment.repeatEnd.tm_min,
-  //        pilot_appointment.repeatEnd.tm_sec);
-  // printf("alarm: %d\n", pilot_appointment.alarm);
-  // printf("advance: %d\n", pilot_appointment.advance);
-  // printf("advanceUnits: %d\n", pilot_appointment.advanceUnits);
-  // printf("repeatType: %d\n", pilot_appointment.repeatType);
-  // printf("repeatForever: %d\n", pilot_appointment.repeatForever);
-  // printf("repeatFrequency: %d\n", pilot_appointment.repeatFrequency);
-  // printf("repeatDay: %d\n", pilot_appointment.repeatDay);
-  // printf("repeatDays: [%d %d %d %d %d %d %d]\n",
-  //        pilot_appointment.repeatDays[0], pilot_appointment.repeatDays[1],
-  //        pilot_appointment.repeatDays[2], pilot_appointment.repeatDays[3],
-  //        pilot_appointment.repeatDays[4], pilot_appointment.repeatDays[5],
-  //        pilot_appointment.repeatDays[6]);
-  // printf("repeatWeekstart: %d\n", pilot_appointment.repeatWeekstart);
-  // printf("exceptions: %d\n", pilot_appointment.exceptions);
-  // printf("description: %s\n", pilot_appointment.description);
-  // printf("note: %s\n", pilot_appointment.note);
-  // printf("--- END PACK DEBUG ---\n");
-
   int ok = pack_Appointment(&pilot_appointment, buf, datebook_v1);
-  printf("ok = %d\n", ok);
   if (ok == -1) {
     return write_datebook_record_result_error(env, client_sd, ok,
                                               "Failed to pack appointment");
   }
-  printf("buf->used = %zu\n", buf->used);
-
-  printf("Packed buffer (%d bytes):\n", buf->used);
-  for (int i = 0; i < buf->used; i++) {
-    printf("%02X ", ((unsigned char *)buf->data)[i]);
-    if ((i + 1) % 16 == 0)
-      printf("\n");
-  }
-  printf("\n");
 
   int result = dlp_WriteRecord(client_sd, dbhandle, 0, rec_id, 0, buf->data, buf->used, &rec_id);
 
