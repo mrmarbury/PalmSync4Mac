@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L /* strdup, strndup, unsetenv */
+
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
@@ -77,40 +79,19 @@ UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port, int wait_timeout) {
   int parent_sd = -1, /* Parent socket, formerly sd   */
       client_sd = -1, /* Client socket, formerly sd2  */
       result;
-  struct pi_sockaddr addr;
   struct stat attr;
-  struct SysInfo sys_info;
-  const char *defport = "/dev/pilot";
+  static char defport[] = "/dev/pilot";
   int bProceed = 1;
 
   if (port == NULL && (port = getenv("PILOTPORT")) == NULL) {
 
-    /* err seems to be used for stat() only */
     int err = 0;
 
-    /* Commented out debug code */
-    /*
-                fprintf(stderr, "   No $PILOTPORT specified and no -p "
-                        "<port> given.\n"
-                        "   Defaulting to '%s'\n", defport);
-    */
     port = defport;
     err = stat(port, &attr);
 
     /* Moved err check inside if() block - err only meaningful here */
     if (err) {
-      /*  *BAD* practice - cannot recover if exit() here.
-          Should create && throw exception instead.
-       */
-      /*
-                          fprintf(stderr, "   ERROR: %s (%d)\n\n",
-         strerror(errno), errno); fprintf(stderr, "   Error accessing: '%s'.
-         Does '%s' exist?\n", port, port);
-                          //fprintf(stderr, "   Please use --help for more
-         information\n\n"); exit(1);
-      */
-
-      /* Throw an exception - FileNotFoundException seems appropriate here */
       res_term = pilot_connect_result_error(env, client_sd, parent_sd,
                                             strerror(errno));
       bProceed = 0;
@@ -120,9 +101,8 @@ UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port, int wait_timeout) {
   /* At this point, either bProceed is 0, or port != NULL, further checks are
    * unnecesary */
 
-  /* Check bProceed to account for previous exceptions */
   if (bProceed &&
-      !(parent_sd = pi_socket(PI_AF_PILOT, PI_SOCK_STREAM, PI_PF_DLP))) {
+      (parent_sd = pi_socket(PI_AF_PILOT, PI_SOCK_STREAM, PI_PF_DLP)) < 0) {
     /*
                 fprintf(stderr, "\n   Unable to create socket '%s'\n",
                         port ? port : getenv("PILOTPORT"));
@@ -130,9 +110,10 @@ UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port, int wait_timeout) {
     */
     /* Throw exception here to inform nature of connection failure. */
     const char *sTemplate = "Unable to create socket '%s'";
-    char *sMessage = (char *)malloc(strlen(sTemplate) + strlen(port) + 1);
+    size_t sMessage_len = strlen(sTemplate) + strlen(port) + 1;
+    char *sMessage = (char *)malloc(sMessage_len);
     if (sMessage != NULL)
-      sprintf(sMessage, sTemplate, port);
+      snprintf(sMessage, sMessage_len, sTemplate, port);
     res_term = pilot_connect_result_error(env, client_sd, parent_sd,
                                           (sMessage != NULL) ? sMessage : port);
     if (sMessage != NULL)
@@ -141,51 +122,12 @@ UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port, int wait_timeout) {
     bProceed = 0;
   }
 
-  /* Check bProceed to account for previous exceptions */
   if (bProceed) {
     result = pi_bind(parent_sd, port);
   }
 
   if (bProceed && result < 0) {
     int save_errno = errno;
-    /*
-                const char *portname;
-
-                portname = (port != NULL) ? port : getenv("PILOTPORT");
-                if (portname) {
-                        fprintf(stderr, "\n");
-                        errno = save_errno;
-                        fprintf(stderr, "   ERROR: %s (%d)\n\n",
-       strerror(errno), errno);
-
-                        if (errno == 2) {
-                                fprintf(stderr, "   The device %s does not
-       exist..\n", portname); fprintf(stderr, "   Possible solution:\n\n\tmknod
-       %s c "
-                                        "<major> <minor>\n\n", portname );
-
-                        } else if (errno == 13) {
-                                fprintf(stderr, "   Please check the "
-                                        "permissions on %s..\n",   portname );
-                                fprintf(stderr, "   Possible
-       solution:\n\n\tchmod 0666 "
-                                        "%s\n\n", portname );
-
-                        } else if (errno == 19) {
-                                fprintf(stderr, "   Press the HotSync button
-       first and " "relaunch this conduit..\n\n"); } else if (errno == 21) {
-                                fprintf(stderr, "   The port specified must
-       contain a " "device name, and %s was a directory.\n" "   Please change
-       that to reference a real " "device, and try again\n\n", portname );
-                        }
-
-                        fprintf(stderr, "   Unable to bind to port: %s\n",
-                                portname) ;
-                        fprintf(stderr, "   Please use --help for more "
-                                "information\n\n");
-                } else
-                        fprintf(stderr, "\n   No port specified\n");
-    */
     const char *sTemplate = "Unable to bind to port %s - (%d) %s%s";
     const char *sFailureReason;
     char *sMessage;
@@ -211,8 +153,11 @@ UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port, int wait_timeout) {
         (char *)malloc(strlen(sTemplate) + strlen(port) + 16 +
                        strlen(strerror(save_errno)) + strlen(sFailureReason));
     if (sMessage != NULL) {
-      sprintf(sMessage, sTemplate, port, save_errno, strerror(save_errno),
-              sFailureReason);
+      snprintf(sMessage,
+               strlen(sTemplate) + strlen(port) + 16 +
+                   strlen(strerror(save_errno)) + strlen(sFailureReason),
+               sTemplate, port, save_errno, strerror(save_errno),
+               sFailureReason);
       res_term =
           pilot_connect_result_error(env, client_sd, parent_sd, sMessage);
       free(sMessage);
@@ -227,13 +172,6 @@ UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port, int wait_timeout) {
     bProceed = 0;
   }
 
-  /* Removed debug message, maybe add notification framework to invoke here
-      fprintf(stderr,
-              "\n   Listening to port: %s\n\n   Please press the HotSync "
-              "button now... ",
-              port ? port : getenv("PILOTPORT"));
-  */
-  /* Check bProceed to account for previous exceptions */
   if (bProceed && pi_listen(parent_sd, 1) == -1) {
     char error_buffer[100];
     snprintf(error_buffer, sizeof(error_buffer), "\n  Error listening on %s\n",
@@ -245,7 +183,6 @@ UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port, int wait_timeout) {
     bProceed = 0;
   }
 
-  /* Check bProceed to account for previous exceptions */
   if (bProceed) {
     client_sd = pi_accept_to(parent_sd, 0, 0, wait_timeout);
     if (client_sd == -1) {
@@ -319,25 +256,32 @@ UNIFEX_TERM read_sysinfo(UnifexEnv *env, int client_sd) {
   UNIFEX_TERM res_term;
   struct SysInfo sys_info;
   struct sys_info_t palm_info;
+  char *prod_id_copy = NULL;
 
   int result = dlp_ReadSysInfo(client_sd, &sys_info);
   if (result < 0) {
-    res_term = read_sysinfo_result_error(env, client_sd, result,
-                                         "Unable to get system info");
-  } else {
-
-    palm_info.rom_version = (uint64_t)sys_info.romVersion;
-    palm_info.locale = (uint64_t)sys_info.locale;
-    palm_info.prod_id_length = (unsigned int)sys_info.prodIDLength;
-    palm_info.prod_id = strndup(sys_info.prodID, sys_info.prodIDLength);
-    palm_info.dlp_major_version = (unsigned int)sys_info.dlpMajorVersion;
-    palm_info.dlp_minor_version = (unsigned int)sys_info.dlpMinorVersion;
-    palm_info.compat_major_version = (unsigned int)sys_info.compatMajorVersion;
-    palm_info.compat_minor_version = (unsigned int)sys_info.compatMinorVersion;
-    palm_info.max_rec_size = (uint64_t)sys_info.maxRecSize;
-
-    res_term = read_sysinfo_result_ok(env, client_sd, palm_info);
+    return read_sysinfo_result_error(env, client_sd, result,
+                                     "Unable to get system info");
   }
+
+  prod_id_copy = strndup(sys_info.prodID, sys_info.prodIDLength);
+  if (prod_id_copy == NULL) {
+    return read_sysinfo_result_error(env, client_sd, -1,
+                                     "Out of memory");
+  }
+
+  palm_info.rom_version = (uint64_t)sys_info.romVersion;
+  palm_info.locale = (uint64_t)sys_info.locale;
+  palm_info.prod_id_length = (unsigned int)sys_info.prodIDLength;
+  palm_info.prod_id = prod_id_copy;
+  palm_info.dlp_major_version = (unsigned int)sys_info.dlpMajorVersion;
+  palm_info.dlp_minor_version = (unsigned int)sys_info.dlpMinorVersion;
+  palm_info.compat_major_version = (unsigned int)sys_info.compatMajorVersion;
+  palm_info.compat_minor_version = (unsigned int)sys_info.compatMinorVersion;
+  palm_info.max_rec_size = (uint64_t)sys_info.maxRecSize;
+
+  res_term = read_sysinfo_result_ok(env, client_sd, palm_info);
+  free(prod_id_copy);
   return res_term;
 }
 
@@ -385,23 +329,40 @@ UNIFEX_TERM read_user_info(UnifexEnv *env, int client_sd) {
   UNIFEX_TERM res_term;
   struct PilotUser user_info;
   struct pilot_user_t pilot_user;
+  char *username_copy = NULL;
+  char *password_copy = NULL;
 
   int result = dlp_ReadUserInfo(client_sd, &user_info);
   if (result < 0) {
-    res_term = read_user_info_result_error(env, client_sd, result,
-                                           "Unable to get user info");
-  } else {
-    pilot_user.password_length = (uint64_t)user_info.passwordLength;
-    pilot_user.username = strdup(user_info.username);
-    pilot_user.password = strndup(user_info.password, user_info.passwordLength);
-    pilot_user.user_id = (uint64_t)user_info.userID;
-    pilot_user.viewer_id = (uint64_t)user_info.viewerID;
-    pilot_user.last_sync_pc = (uint64_t)user_info.lastSyncPC;
-    pilot_user.successful_sync_date = (uint64_t)user_info.successfulSyncDate;
-    pilot_user.last_sync_date = (uint64_t)user_info.lastSyncDate;
-
-    res_term = read_user_info_result_ok(env, client_sd, pilot_user);
+    return read_user_info_result_error(env, client_sd, result,
+                                       "Unable to get user info");
   }
+
+  username_copy = strdup(user_info.username);
+  if (username_copy == NULL) {
+    return read_user_info_result_error(env, client_sd, -1,
+                                       "Out of memory");
+  }
+
+  password_copy = strndup(user_info.password, user_info.passwordLength);
+  if (password_copy == NULL) {
+    free(username_copy);
+    return read_user_info_result_error(env, client_sd, -1,
+                                       "Out of memory");
+  }
+
+  pilot_user.password_length = (uint64_t)user_info.passwordLength;
+  pilot_user.username = username_copy;
+  pilot_user.password = password_copy;
+  pilot_user.user_id = (uint64_t)user_info.userID;
+  pilot_user.viewer_id = (uint64_t)user_info.viewerID;
+  pilot_user.last_sync_pc = (uint64_t)user_info.lastSyncPC;
+  pilot_user.successful_sync_date = (uint64_t)user_info.successfulSyncDate;
+  pilot_user.last_sync_date = (uint64_t)user_info.lastSyncDate;
+
+  res_term = read_user_info_result_ok(env, client_sd, pilot_user);
+  free(username_copy);
+  free(password_copy);
   return res_term;
 }
 
@@ -438,9 +399,21 @@ UNIFEX_TERM write_user_info(UnifexEnv *env, int client_sd,
 
 UNIFEX_TERM write_datebook_record(UnifexEnv *env, int client_sd, int dbhandle, appointment appointment) {
   UNIFEX_TERM res_term;
-  pi_buffer_t *buf = pi_buffer_new(0xffff);
+  pi_buffer_t *buf = NULL;
   struct Appointment pilot_appointment;
+  char *desc_copy = NULL;
+  char *note_copy = NULL;
+  struct tm *exception_list = NULL;
   recordid_t rec_id;
+
+  memset(&pilot_appointment, 0, sizeof(pilot_appointment));
+
+  buf = pi_buffer_new(0xffff);
+  if (buf == NULL) {
+    res_term = write_datebook_record_result_error(env, client_sd, -1,
+                                                  "Out of memory");
+    goto cleanup;
+  }
 
   pilot_appointment.event = (int)appointment.event;
   pilot_appointment.begin = timehtm_to_tm(appointment.begin);
@@ -454,46 +427,117 @@ UNIFEX_TERM write_datebook_record(UnifexEnv *env, int client_sd, int dbhandle, a
   pilot_appointment.repeatForever = (int)appointment.repeat_forever;
   pilot_appointment.repeatDay = appointment.repeat_day;
 
-  for (int i = 0; i < 7; i++) {
+  for (unsigned int i = 0; i < 7u; i++) {
     pilot_appointment.repeatDays[i] =
         i < appointment.repeat_days_length ? appointment.repeat_days[i] : 0;
   }
 
   pilot_appointment.repeatWeekstart = (int)appointment.repeat_weekstart;
   pilot_appointment.exceptions = (int)appointment.exceptions_count;
-  pilot_appointment.exception = timehtm_list_to_tm_list(
+  exception_list = timehtm_list_to_tm_list(
       appointment.exceptions_actual, appointment.exceptions_count);
-  pilot_appointment.description = strdup(appointment.description);
+  pilot_appointment.exception = exception_list;
+
+  desc_copy = strdup(appointment.description);
+  if (desc_copy == NULL) {
+    res_term = write_datebook_record_result_error(env, client_sd, -1,
+                                                  "Out of memory");
+    goto cleanup;
+  }
+  pilot_appointment.description = desc_copy;
+
   pilot_appointment.note =
       is_blank(appointment.note) ? NULL : strdup(appointment.note);
+  note_copy = pilot_appointment.note; /* NULL if note was blank */
 
   rec_id = (recordid_t) appointment.rec_id;
 
+  // some debugging printfs
+  // printf("\n--- BEGIN PACK DEBUG ---\n");
+  // printf("event: %d\n", pilot_appointment.event);
+  // printf("begin: %02d-%02d-%04d %02d:%02d:%02d\n",
+  //        pilot_appointment.begin.tm_mday, pilot_appointment.begin.tm_mon + 1,
+  //        pilot_appointment.begin.tm_year + 1900,
+  //        pilot_appointment.begin.tm_hour, pilot_appointment.begin.tm_min,
+  //        pilot_appointment.begin.tm_sec);
+  // printf("end: %02d-%02d-%04d %02d:%02d:%02d\n", pilot_appointment.end.tm_mday,
+  //        pilot_appointment.end.tm_mon + 1, pilot_appointment.end.tm_year + 1900,
+  //        pilot_appointment.end.tm_hour, pilot_appointment.end.tm_min,
+  //        pilot_appointment.end.tm_sec);
+  // printf("repeatEnd: %02d-%02d-%04d %02d:%02d:%02d\n",
+  //        pilot_appointment.repeatEnd.tm_mday,
+  //        pilot_appointment.repeatEnd.tm_mon + 1,
+  //        pilot_appointment.repeatEnd.tm_year + 1900,
+  //        pilot_appointment.repeatEnd.tm_hour,
+  //        pilot_appointment.repeatEnd.tm_min,
+  //        pilot_appointment.repeatEnd.tm_sec);
+  // printf("alarm: %d\n", pilot_appointment.alarm);
+  // printf("advance: %d\n", pilot_appointment.advance);
+  // printf("advanceUnits: %d\n", pilot_appointment.advanceUnits);
+  // printf("repeatType: %d\n", pilot_appointment.repeatType);
+  // printf("repeatForever: %d\n", pilot_appointment.repeatForever);
+  // printf("repeatFrequency: %d\n", pilot_appointment.repeatFrequency);
+  // printf("repeatDay: %d\n", pilot_appointment.repeatDay);
+  // printf("repeatDays: [%d %d %d %d %d %d %d]\n",
+  //        pilot_appointment.repeatDays[0], pilot_appointment.repeatDays[1],
+  //        pilot_appointment.repeatDays[2], pilot_appointment.repeatDays[3],
+  //        pilot_appointment.repeatDays[4], pilot_appointment.repeatDays[5],
+  //        pilot_appointment.repeatDays[6]);
+  // printf("repeatWeekstart: %d\n", pilot_appointment.repeatWeekstart);
+  // printf("exceptions: %d\n", pilot_appointment.exceptions);
+  // printf("description: %s\n", pilot_appointment.description);
+  // printf("note: %s\n", pilot_appointment.note);
+  // printf("--- END PACK DEBUG ---\n");
+  // printf("ok = %d\n", ok);
+  // printf("buf->used = %zu\n", buf->used);
+  // printf("Packed buffer (%zu bytes):\n", buf->used);
+  // for (unsigned int i = 0; i < buf->used; i++) {
+  //   printf("%02X ", ((unsigned char *)buf->data)[i]);
+  //   if ((i + 1) % 16 == 0)
+  //     printf("\n");
+  // }
+  // printf("\n");
+
   int ok = pack_Appointment(&pilot_appointment, buf, datebook_v1);
   if (ok == -1) {
-    return write_datebook_record_result_error(env, client_sd, ok,
-                                              "Failed to pack appointment");
+    res_term = write_datebook_record_result_error(env, client_sd, ok,
+                                                  "Failed to pack appointment");
+    goto cleanup;
   }
 
   int result = dlp_WriteRecord(client_sd, dbhandle, 0, rec_id, 0, buf->data, buf->used, &rec_id);
 
-  pi_buffer_free(buf);
-
   if (result < 0) {
-    return write_datebook_record_result_error(env, client_sd, result,
-                                              "dlp_WriteRecord failed");
+    res_term = write_datebook_record_result_error(env, client_sd, result,
+                                                  "dlp_WriteRecord failed");
+    goto cleanup;
   }
 
-  return write_datebook_record_result_ok(env, client_sd, result, rec_id);
+  res_term = write_datebook_record_result_ok(env, client_sd, result, rec_id);
+
+cleanup:
+  free(desc_copy);
+  free(note_copy);
+  free(exception_list);
+  pi_buffer_free(buf);
+  return res_term;
 }
 
 UNIFEX_TERM write_calendar_record(UnifexEnv *env, int client_sd, int dbhandle, appointment appointment) {
   UNIFEX_TERM res_term;
-  pi_buffer_t *buf = pi_buffer_new(0xffff);
+  pi_buffer_t *buf = NULL;
   CalendarEvent_t cal_event;
+  struct tm *exception_list = NULL;
   recordid_t rec_id;
 
   new_CalendarEvent(&cal_event);
+
+  buf = pi_buffer_new(0xffff);
+  if (buf == NULL) {
+    res_term = write_calendar_record_result_error(env, client_sd, -1,
+                                                  "Out of memory");
+    goto cleanup;
+  }
 
   cal_event.event = (int)appointment.event;
   cal_event.begin = timehtm_to_tm(appointment.begin);
@@ -507,41 +551,50 @@ UNIFEX_TERM write_calendar_record(UnifexEnv *env, int client_sd, int dbhandle, a
   cal_event.repeatForever = (int)appointment.repeat_forever;
   cal_event.repeatDay = appointment.repeat_day;
 
-  for (int i = 0; i < 7; i++) {
+  for (unsigned int i = 0; i < 7u; i++) {
     cal_event.repeatDays[i] =
         i < appointment.repeat_days_length ? appointment.repeat_days[i] : 0;
   }
 
   cal_event.repeatWeekstart = (int)appointment.repeat_weekstart;
   cal_event.exceptions = (int)appointment.exceptions_count;
-  cal_event.exception = timehtm_list_to_tm_list(
+  exception_list = timehtm_list_to_tm_list(
       appointment.exceptions_actual, appointment.exceptions_count);
+  cal_event.exception = exception_list;
+
   cal_event.description = strdup(appointment.description);
-  cal_event.note =
-      is_blank(appointment.note) ? NULL : strdup(appointment.note);
-  cal_event.location =
-      is_blank(appointment.location) ? NULL : strdup(appointment.location);
+  if (cal_event.description == NULL) {
+    res_term = write_calendar_record_result_error(env, client_sd, -1,
+                                                  "Out of memory");
+    goto cleanup;
+  }
+
+  cal_event.note = is_blank(appointment.note) ? NULL : strdup(appointment.note);
+  cal_event.location = is_blank(appointment.location) ? NULL : strdup(appointment.location);
   cal_event.tz = NULL;
 
   rec_id = (recordid_t)appointment.rec_id;
 
   int ok = pack_CalendarEvent(&cal_event, buf, calendar_v1);
   if (ok == -1) {
-    free_CalendarEvent(&cal_event);
-    pi_buffer_free(buf);
-    return write_calendar_record_result_error(env, client_sd, ok,
-                                              "Failed to pack calendar event");
+    res_term = write_calendar_record_result_error(env, client_sd, ok,
+                                                  "Failed to pack calendar event");
+    goto cleanup;
   }
 
   int result = dlp_WriteRecord(client_sd, dbhandle, 0, rec_id, 0, buf->data, buf->used, &rec_id);
 
-  free_CalendarEvent(&cal_event);
-  pi_buffer_free(buf);
-
   if (result < 0) {
-    return write_calendar_record_result_error(env, client_sd, result,
-                                              "dlp_WriteRecord failed");
+    res_term = write_calendar_record_result_error(env, client_sd, result,
+                                                  "dlp_WriteRecord failed");
+    goto cleanup;
   }
 
-  return write_calendar_record_result_ok(env, client_sd, result, rec_id);
+  res_term = write_calendar_record_result_ok(env, client_sd, result, rec_id);
+
+cleanup:
+  free(exception_list);
+  free_CalendarEvent(&cal_event);
+  pi_buffer_free(buf);
+  return res_term;
 }

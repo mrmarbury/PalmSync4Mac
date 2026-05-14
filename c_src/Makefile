@@ -1,6 +1,6 @@
 CC      ?= gcc
 CSTD    ?= c11
-CFLAGS  := -std=$(CSTD) -D_POSIX_C_SOURCE=200809L -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable
+CFLAGS  := -std=$(CSTD) -D_POSIX_C_SOURCE=200809L -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable -MMD -MP
 
 PILOT_LINK_INCLUDE ?= /opt/homebrew/include
 
@@ -39,12 +39,21 @@ TEST_WRITE_O      = $(BUILD_DIR)/test_write.o
 TEST_CONNECTION_O = $(BUILD_DIR)/test_connection.o
 TEST_RUNNER_O     = $(BUILD_DIR)/test_runner.o
 
+DEPS = $(PIDLP_O:.o=.d) $(MOCK_O:.o=.d) $(STUBS_O:.o=.d) $(UNITY_O:.o=.d) \
+       $(TEST_HELPERS_O:.o=.d) $(TEST_READ_O:.o=.d) $(TEST_WRITE_O:.o=.d) \
+       $(TEST_CONNECTION_O:.o=.d) $(TEST_RUNNER_O:.o=.d)
+
 TEST_BIN = $(BUILD_DIR)/test_pidlp
 
-.PHONY: test clean
+.PHONY: test test-asan clean
 
 test: $(TEST_BIN)
 	@echo "Running C unit tests..."
+	@./$(TEST_BIN)
+
+test-asan: CFLAGS += -fsanitize=address,undefined -fno-omit-frame-pointer
+test-asan: clean $(TEST_BIN)
+	@echo "Running C unit tests with ASan + UBSan..."
 	@./$(TEST_BIN)
 
 $(BUILD_DIR):
@@ -80,7 +89,9 @@ $(TEST_RUNNER_O): $(TEST_RUNNER) | $(BUILD_DIR)
 $(TEST_BIN): $(PIDLP_O) $(MOCK_O) $(STUBS_O) $(UNITY_O) \
              $(TEST_HELPERS_O) $(TEST_READ_O) $(TEST_WRITE_O) \
              $(TEST_CONNECTION_O) $(TEST_RUNNER_O)
-	$(CC) $^ -o $@
+	$(CC) $(CFLAGS) $^ -o $@
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+-include $(DEPS)

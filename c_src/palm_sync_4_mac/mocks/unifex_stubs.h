@@ -52,3 +52,11 @@ UNIFEX_TERM make_ok_term(int client_sd, int parent_sd, int result,
                          int db_handle, int rec_id, uint64_t palm_date_time);
 UNIFEX_TERM make_error_term(int client_sd, int parent_sd, int result,
                             const char *message);
+
+struct sys_info_t;
+struct pilot_user_t;
+
+extern struct sys_info_t *captured_sys_info;
+extern struct pilot_user_t *captured_pilot_user;
+
+void free_captured_data(void);

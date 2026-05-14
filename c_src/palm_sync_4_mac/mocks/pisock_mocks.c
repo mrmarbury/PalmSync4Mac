@@ -157,10 +157,13 @@ int pack_Appointment(const struct Appointment *a, pi_buffer_t *buf, datebookType
     if (buf && mock_state.pack_Appointment_return >= 0) {
         buf->used = 16;
         if (buf->allocated < 16) {
-            buf->data = realloc(buf->data, 16);
+            free(buf->data);
+            buf->data = (unsigned char *)malloc(16);
             buf->allocated = 16;
         }
-        memset(buf->data, 0xAB, 16);
+        if (buf->data) {
+            memset(buf->data, 0xAB, 16);
+        }
     }
     return mock_state.pack_Appointment_return;
 }
@@ -172,10 +175,13 @@ int pack_CalendarEvent(const CalendarEvent_t *e, pi_buffer_t *buf, calendarType 
     if (buf && mock_state.pack_CalendarEvent_return >= 0) {
         buf->used = 16;
         if (buf->allocated < 16) {
-            buf->data = realloc(buf->data, 16);
+            free(buf->data);
+            buf->data = (unsigned char *)malloc(16);
             buf->allocated = 16;
         }
-        memset(buf->data, 0xCD, 16);
+        if (buf->data) {
+            memset(buf->data, 0xCD, 16);
+        }
     }
     return mock_state.pack_CalendarEvent_return;
 }
@@ -194,6 +200,7 @@ void free_CalendarEvent(CalendarEvent_t *event) {
         if (event->note) { free(event->note); event->note = NULL; }
         if (event->location) { free(event->location); event->location = NULL; }
         if (event->exception) { free(event->exception); event->exception = NULL; }
+        if (event->tz) { free(event->tz); event->tz = NULL; }
     }
 }
 

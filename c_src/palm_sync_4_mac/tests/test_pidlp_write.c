@@ -47,7 +47,8 @@ static appointment make_test_appointment(void) {
     a.repeat_end = (timehtm){0};
     a.repeat_frequency = 0;
     a.repeat_day = 0;
-    int days[7] = {0};
+    static int days[7];
+    memset(days, 0, sizeof(days));
     a.repeat_days = days;
     a.repeat_days_length = 7;
     a.repeat_weekstart = 0;

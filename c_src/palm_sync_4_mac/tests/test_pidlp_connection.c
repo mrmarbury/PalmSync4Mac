@@ -11,13 +11,26 @@
 #include <string.h>
 #include <errno.h>
 
+static char *saved_pilotport = NULL;
+
 void connection_setUp(void) {
     mock_state_reset();
     reset_result_recorder();
+    saved_pilotport = NULL;
+    char *env_val = getenv("PILOTPORT");
+    if (env_val) {
+        saved_pilotport = strdup(env_val);
+    }
     unsetenv("PILOTPORT");
 }
 
-void connection_tearDown(void) {}
+void connection_tearDown(void) {
+    if (saved_pilotport) {
+        setenv("PILOTPORT", saved_pilotport, 1);
+        free(saved_pilotport);
+        saved_pilotport = NULL;
+    }
+}
 
 void test_pilot_connect_null_port_uses_default(void) {
     UnifexEnv env;
@@ -44,7 +57,7 @@ void test_pilot_connect_stat_fails(void) {
 
 void test_pilot_connect_socket_fails(void) {
     UnifexEnv env;
-    mock_state.pi_socket_return = 0;
+    mock_state.pi_socket_return = -1;
 
     UNIFEX_TERM result = pilot_connect(&env, "/dev/pilot", 0);
 

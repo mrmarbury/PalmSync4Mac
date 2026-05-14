@@ -48,10 +48,12 @@ extern void test_timehtm_list_maps_each_element(void);
 
 extern void test_read_sysinfo_success(void);
 extern void test_read_sysinfo_error(void);
+extern void test_read_sysinfo_field_mapping(void);
 extern void test_get_sys_date_time_success(void);
 extern void test_get_sys_date_time_error(void);
 extern void test_read_user_info_success(void);
 extern void test_read_user_info_error(void);
+extern void test_read_user_info_field_mapping(void);
 
 extern void test_write_user_info_field_mapping(void);
 extern void test_write_user_info_success(void);
@@ -104,10 +106,12 @@ int main(void) {
     current_group = 1;
     RUN_TEST(test_read_sysinfo_success);
     RUN_TEST(test_read_sysinfo_error);
+    RUN_TEST(test_read_sysinfo_field_mapping);
     RUN_TEST(test_get_sys_date_time_success);
     RUN_TEST(test_get_sys_date_time_error);
     RUN_TEST(test_read_user_info_success);
     RUN_TEST(test_read_user_info_error);
+    RUN_TEST(test_read_user_info_field_mapping);
 
     current_group = 2;
     RUN_TEST(test_write_user_info_field_mapping);

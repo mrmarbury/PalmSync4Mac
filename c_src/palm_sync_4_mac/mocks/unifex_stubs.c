@@ -9,11 +9,34 @@
 #include "pidlp.h"
 
 ResultRecorder result_recorder;
+struct sys_info_t *captured_sys_info = NULL;
+struct pilot_user_t *captured_pilot_user = NULL;
+
+void free_captured_data(void) {
+    if (captured_sys_info) {
+        if (captured_sys_info->prod_id) {
+            free(captured_sys_info->prod_id);
+        }
+        free(captured_sys_info);
+        captured_sys_info = NULL;
+    }
+    if (captured_pilot_user) {
+        if (captured_pilot_user->username) {
+            free(captured_pilot_user->username);
+        }
+        if (captured_pilot_user->password) {
+            free(captured_pilot_user->password);
+        }
+        free(captured_pilot_user);
+        captured_pilot_user = NULL;
+    }
+}
 
 void reset_result_recorder(void) {
     if (result_recorder.last_result.data.message) {
         free(result_recorder.last_result.data.message);
     }
+    free_captured_data();
     memset(&result_recorder, 0, sizeof(result_recorder));
 }
 
@@ -108,7 +131,13 @@ UNIFEX_TERM end_of_sync_result_error(UnifexEnv *env, int client_sd, int result) 
 /* read_sysinfo */
 UNIFEX_TERM read_sysinfo_result_ok(UnifexEnv *env, int client_sd, struct sys_info_t sys_info) {
     (void)env;
-    (void)sys_info;
+    captured_sys_info = (struct sys_info_t *)malloc(sizeof(struct sys_info_t));
+    if (captured_sys_info) {
+        *captured_sys_info = sys_info;
+        if (sys_info.prod_id) {
+            captured_sys_info->prod_id = strdup(sys_info.prod_id);
+        }
+    }
     return make_ok_term(client_sd, -1, 0, 0, 0, 0);
 }
 
@@ -142,7 +171,16 @@ UNIFEX_TERM set_sys_date_time_result_error(UnifexEnv *env, int client_sd, int re
 /* read_user_info */
 UNIFEX_TERM read_user_info_result_ok(UnifexEnv *env, int client_sd, struct pilot_user_t user_info) {
     (void)env;
-    (void)user_info;
+    captured_pilot_user = (struct pilot_user_t *)malloc(sizeof(struct pilot_user_t));
+    if (captured_pilot_user) {
+        *captured_pilot_user = user_info;
+        if (user_info.username) {
+            captured_pilot_user->username = strdup(user_info.username);
+        }
+        if (user_info.password) {
+            captured_pilot_user->password = strdup(user_info.password);
+        }
+    }
     return make_ok_term(client_sd, -1, 0, 0, 0, 0);
 }
 
