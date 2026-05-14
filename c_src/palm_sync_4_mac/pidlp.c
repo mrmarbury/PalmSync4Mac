@@ -29,6 +29,7 @@ bool is_blank(const char *str) {
   if (str == NULL)
     return true;
 
+  // Skip leading whitespace
   while (*str != '\0') {
     if (!isspace((unsigned char)*str)) {
       return false;
