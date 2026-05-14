@@ -29,7 +29,6 @@ bool is_blank(const char *str) {
   if (str == NULL)
     return true;
 
-  // Skip leading whitespace
   while (*str != '\0') {
     if (!isspace((unsigned char)*str)) {
       return false;
@@ -75,7 +74,7 @@ struct tm *timehtm_list_to_tm_list(timehtm *src, unsigned int count) {
 
 /*pilot-connect*/
 UNIFEX_TERM pilot_connect(UnifexEnv *env, char *port, int wait_timeout) {
-  UNIFEX_TERM res_term;
+  UNIFEX_TERM res_term = {0};
   int parent_sd = -1, /* Parent socket, formerly sd   */
       client_sd = -1, /* Client socket, formerly sd2  */
       result;
@@ -446,9 +445,13 @@ UNIFEX_TERM write_datebook_record(UnifexEnv *env, int client_sd, int dbhandle, a
   }
   pilot_appointment.description = desc_copy;
 
-  pilot_appointment.note =
-      is_blank(appointment.note) ? NULL : strdup(appointment.note);
-  note_copy = pilot_appointment.note; /* NULL if note was blank */
+  if (!is_blank(appointment.note)) {
+    note_copy = strdup(appointment.note);
+    if (note_copy == NULL) {
+      fprintf(stderr, "palm_sync: OOM copying note, record will be written without note\n");
+    }
+  }
+  pilot_appointment.note = note_copy;
 
   rec_id = (recordid_t) appointment.rec_id;
 
@@ -569,8 +572,18 @@ UNIFEX_TERM write_calendar_record(UnifexEnv *env, int client_sd, int dbhandle, a
     goto cleanup;
   }
 
-  cal_event.note = is_blank(appointment.note) ? NULL : strdup(appointment.note);
-  cal_event.location = is_blank(appointment.location) ? NULL : strdup(appointment.location);
+  if (!is_blank(appointment.note)) {
+    cal_event.note = strdup(appointment.note);
+    if (cal_event.note == NULL) {
+      fprintf(stderr, "palm_sync: OOM copying note, record will be written without note\n");
+    }
+  }
+  if (!is_blank(appointment.location)) {
+    cal_event.location = strdup(appointment.location);
+    if (cal_event.location == NULL) {
+      fprintf(stderr, "palm_sync: OOM copying location, record will be written without location\n");
+    }
+  }
   cal_event.tz = NULL;
 
   rec_id = (recordid_t)appointment.rec_id;

@@ -1,6 +1,6 @@
 CC      ?= gcc
 CSTD    ?= c11
-CFLAGS  := -std=$(CSTD) -D_POSIX_C_SOURCE=200809L -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable -MMD -MP
+CFLAGS  := -std=$(CSTD) -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable -MMD -MP
 
 PILOT_LINK_INCLUDE ?= /opt/homebrew/include
 
