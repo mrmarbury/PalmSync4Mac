@@ -89,6 +89,35 @@ Could extend AppointmentWorker with `sync_deletions/1`, or create a new DeleteSy
 
 ---
 
+## 4. Attachment Blob Sync (CalendarEvent.blob)
+
+### Origin
+CalendarDB's `CalendarEvent_t` struct has a `blob[MAX_BLOBS]` field for attachments. During the location-sync fix (Gate D), we identified that Apple Calendar events may have attachments that could theoretically be synced to Palm. Deliberately excluded because attachment handling introduces size and format constraints that need careful design.
+
+### What It Should Do
+Sync attachments from Apple Calendar events to Palm CalendarDB records, with safety constraints:
+
+- **Format filter**: Only sync attachment types supported by the Palm device (e.g., vCard, text, images the Palm image viewer can open). Unsupported formats should be skipped with a log warning.
+- **Size limit**: Only sync attachments below a configurable max size (suggested: 64KB per attachment, ~256KB total per event). Oversized attachments should be skipped with a log warning.
+- **Fallback for DateBook**: DateBook v1 has no blob field — attachments are impossible on pre-5.2 devices. No note-appending fallback (unlike location/tz).
+
+### Where to Implement
+1. Add `blob` field to the `appointment` Unifex type and C struct (currently absent).
+2. In `write_calendar_record`, pack blob data into `CalendarEvent_t.blob` via pilot-link's `pack_CalendarEvent`.
+3. In Elixir, extract attachments from `EKEvent` via EventKit Swift port and encode into the blob field.
+4. Add configuration for max attachment size and supported MIME types.
+
+### Affected Contracts
+- **New contract needed** for attachment sync (extends Gate D / CalendarDB path).
+- **pidlp.spec.exs** — add `blob` field to `appointment` type.
+- **DatebookAppointment** struct — add `blob` field.
+- **Swift EventKit port** — attachment extraction.
+
+### Priority
+**Low** — Palm devices have limited storage and attachment support is spotty. Core sync (title, time, location, note, repeat rules) should be stable first. May become more important if users want to sync contacts or photos.
+
+---
+
 ## Summary
 
 | # | Item | Priority | New NIFs Needed | New Contracts |
@@ -96,3 +125,4 @@ Could extend AppointmentWorker with `sync_deletions/1`, or create a new DeleteSy
 | 1 | sync_expired | Medium | No | No (extends C3, C4) |
 | 2 | sync_from_palm | High | Yes (dlp_ReadRecordById, dlp_ReadRecordByIndex, dlp_ReadNextModifiedRec) | Yes (C6) |
 | 3 | delete sync | Medium | Yes (dlp_DeleteRecord) | Possibly (extends C1, C3 or new) |
+| 4 | attachment blob | Low | No (extends existing) | Yes (extends Gate D) |
