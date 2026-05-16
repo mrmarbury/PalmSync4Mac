@@ -7,6 +7,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
   use ExUnit.Case, async: false
   use Patch
 
+  alias PalmSync4Mac.Comms.Pidlp.PilotSysInfo
   alias PalmSync4Mac.Entity.Device.PalmUser
   alias PalmSync4Mac.Entity.EventKit.CalendarEvent
   alias PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus
@@ -157,7 +158,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
     end
   end
 
-  describe "sync_to_palm/1 — join row creation" do
+  describe "sync_to_palm/2 — join row creation" do
     test "creates join row with rec_id on success", %{palm_user: palm_user} do
       patch(PalmSync4Mac.Comms.Pidlp, :open_db, fn _sd, _card, _mode, _name ->
         {:ok, 42, 1}
@@ -169,7 +170,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
 
       patch(PalmSync4Mac.Comms.Pidlp, :close_db, fn _sd, _db -> {:ok, 42} end)
 
-      result = AppointmentWorker.sync_to_palm(palm_user.id)
+      result = AppointmentWorker.sync_to_palm(palm_user.id, %PilotSysInfo{})
       assert result == :ok
 
       {:ok, rows} = Ash.read(EkCalendarDatebookSyncStatus)
@@ -189,7 +190,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
 
       patch(PalmSync4Mac.Comms.Pidlp, :close_db, fn _sd, _db -> {:ok, 42} end)
 
-      result = AppointmentWorker.sync_to_palm(palm_user.id)
+      result = AppointmentWorker.sync_to_palm(palm_user.id, %PilotSysInfo{})
       assert result == :ok
 
       {:ok, rows} = Ash.read(EkCalendarDatebookSyncStatus)
@@ -205,7 +206,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
         {:error, 42, -1, "db open failed"}
       end)
 
-      result = AppointmentWorker.sync_to_palm(palm_user.id)
+      result = AppointmentWorker.sync_to_palm(palm_user.id, %PilotSysInfo{})
       assert result == :ok
 
       {:ok, rows} = Ash.read(EkCalendarDatebookSyncStatus)
@@ -234,7 +235,34 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
       })
       |> Ash.create()
 
-      result = AppointmentWorker.sync_to_palm(palm_user.id)
+      result = AppointmentWorker.sync_to_palm(palm_user.id, %PilotSysInfo{})
+      assert result == :ok
+    end
+
+    # Gate D-2 will use rom_version for version-branching (CalendarDB vs DatebookDB)
+    test "sync_to_palm/2 accepts PilotSysInfo with specific rom_version (plumbing for D-2)", %{
+      palm_user: palm_user,
+      calendar_event: calendar_event
+    } do
+      patch(PalmSync4Mac.Comms.Pidlp, :open_db, fn _sd, _card, _mode, _name ->
+        {:ok, 42, 1}
+      end)
+
+      patch(PalmSync4Mac.Comms.Pidlp, :close_db, fn _sd, _db -> {:ok, 42} end)
+
+      EkCalendarDatebookSyncStatus
+      |> Ash.Changeset.for_create(:create_or_update, %{
+        palm_user_id: palm_user.id,
+        calendar_event_id: calendar_event.id,
+        rec_id: 5,
+        last_synced_version: calendar_event.version,
+        last_sync_success: true
+      })
+      |> Ash.create()
+
+      sys_info = %PilotSysInfo{rom_version: 0x05040000, prod_id: "Palm TX"}
+
+      result = AppointmentWorker.sync_to_palm(palm_user.id, sys_info)
       assert result == :ok
     end
   end

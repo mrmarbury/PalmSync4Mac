@@ -1,4 +1,4 @@
-defmodule PalmSync4Mac.Pilot.SyncWorkers do
+defmodule PalmSync4Mac.Pilot.Helper.SyncWorkers do
   @moduledoc """
   Convenience wrapper for managing sync worker processes under DynamicSyncWorkerSup.
 
