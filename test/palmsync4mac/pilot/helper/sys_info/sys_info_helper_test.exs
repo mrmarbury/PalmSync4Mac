@@ -44,6 +44,13 @@ defmodule PalmSync4Mac.Pilot.Helper.SysInfo.SysInfoHelperTest do
       assert {:error, "Not connected to a Palm device?"} = SysInfoHelper.read_sys_info(-1)
     end
 
+    # Contract: I1 — defensive against non-map NIF return
+    test "returns {:error, \"Unexpected sysinfo format...\"} when NIF returns non-map" do
+      patch(Pidlp, :read_sysinfo, fn _sd -> {:ok, 42, "not a map"} end)
+
+      assert {:error, "Unexpected sysinfo format from NIF"} = SysInfoHelper.read_sys_info(42)
+    end
+
     test "field mapping matches NIF response struct" do
       nif_response = %{
         rom_version: 0x05020000,

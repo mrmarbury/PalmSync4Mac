@@ -333,6 +333,65 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       assert_received :success_called
       Process.unregister(:test_pid_exe5)
     end
+
+    # Contract: I9 — every sync_queue MFA receives both palm_user_id and sys_info
+    test "every sync_queue MFA receives both palm_user_id and sys_info in correct positions" do
+      defmodule ExecuteTestMulti1 do
+        defstruct client_sd: -1
+
+        def multi_sync_a(palm_user_id, sys_info) do
+          send(
+            Process.whereis(:test_pid_multi_inject) || self(),
+            {:mfa_a, palm_user_id, sys_info}
+          )
+
+          :ok
+        end
+      end
+
+      defmodule ExecuteTestMulti2 do
+        defstruct client_sd: -1
+
+        def multi_sync_b(palm_user_id, sys_info) do
+          send(
+            Process.whereis(:test_pid_multi_inject) || self(),
+            {:mfa_b, palm_user_id, sys_info}
+          )
+
+          :ok
+        end
+      end
+
+      Process.register(self(), :test_pid_multi_inject)
+
+      state = %PilotSyncRequest{
+        client_sd: 5,
+        parent_sd: 6,
+        pre_sync_queue: [
+          {ExecuteTest3, :pre_func, []},
+          {ExecuteTest3, :sys_info_pre_func, []}
+        ],
+        sync_queue: [
+          {ExecuteTestMulti1, :multi_sync_a, []},
+          {ExecuteTestMulti2, :multi_sync_b, []}
+        ],
+        post_sync_queue: []
+      }
+
+      MainWorker.handle_info(:sync, state)
+
+      # First MFA received both args in correct positions
+      assert_received {:mfa_a, palm_user_id_a, sys_info_a}
+      assert palm_user_id_a == "palm-user-uuid"
+      assert sys_info_a.rom_version == 0x05040000
+
+      # Second MFA received both args in correct positions
+      assert_received {:mfa_b, palm_user_id_b, sys_info_b}
+      assert palm_user_id_b == "palm-user-uuid"
+      assert sys_info_b.rom_version == 0x05040000
+
+      Process.unregister(:test_pid_multi_inject)
+    end
   end
 
   describe "terminate/2" do
@@ -516,6 +575,18 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
         end
       end
 
+      # Canary: if sync_queue runs despite pre-sync failure, this sends a message
+      defmodule ExecuteTestSyncCanary do
+        defstruct client_sd: -1
+
+        def sync_canary(_palm_user_id, _sys_info) do
+          send(Process.whereis(:test_pid_canary) || self(), :sync_queue_ran)
+          :ok
+        end
+      end
+
+      Process.register(self(), :test_pid_canary)
+
       state = %PilotSyncRequest{
         client_sd: 5,
         parent_sd: 6,
@@ -523,13 +594,57 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
           {ExecuteTestSysInfoFail, :pre_func, []},
           {ExecuteTestSysInfoFail, :sys_info_fail_func, []}
         ],
-        sync_queue: [],
+        sync_queue: [{ExecuteTestSyncCanary, :sync_canary, []}],
         post_sync_queue: []
       }
 
-      # handle_info stops with :normal regardless — the error is logged and
-      # post_sync runs (empty here). No crash = correct behavior.
       assert {:stop, :normal, _} = MainWorker.handle_info(:sync, state)
+      refute_received :sync_queue_ran
+
+      Process.unregister(:test_pid_canary)
+    end
+
+    test "pre-sync fails when UserInfoWorker fails (SysInfoWorker succeeds)" do
+      defmodule ExecuteTestUserInfoFail do
+        defstruct client_sd: -1
+
+        alias PalmSync4Mac.Comms.Pidlp.PilotSysInfo
+
+        def sys_info_func do
+          {:ok, %PilotSysInfo{rom_version: 0x05040000}}
+        end
+
+        def user_info_fail_func do
+          {:error, "user info read failed"}
+        end
+      end
+
+      Process.register(self(), :test_pid_canary2)
+
+      defmodule ExecuteTestSyncCanary2 do
+        defstruct client_sd: -1
+
+        def sync_canary(_palm_user_id, _sys_info) do
+          send(Process.whereis(:test_pid_canary2) || self(), :sync_queue_ran)
+          :ok
+        end
+      end
+
+      state = %PilotSyncRequest{
+        client_sd: 5,
+        parent_sd: 6,
+        pre_sync_queue: [
+          {ExecuteTestUserInfoFail, :sys_info_func, []},
+          {ExecuteTestUserInfoFail, :user_info_fail_func, []}
+        ],
+        sync_queue: [{ExecuteTestSyncCanary2, :sync_canary, []}],
+        post_sync_queue: []
+      }
+
+      assert {:stop, :normal, _} = MainWorker.handle_info(:sync, state)
+      refute_received :sync_queue_ran
+
+      Process.unregister(:test_pid_canary2)
     end
 
     test "pre-sync returns error when palm_user_id is missing" do
@@ -543,18 +658,32 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
         end
       end
 
+      Process.register(self(), :test_pid_canary3)
+
+      defmodule ExecuteTestSyncCanary3 do
+        defstruct client_sd: -1
+
+        def sync_canary(_palm_user_id, _sys_info) do
+          send(Process.whereis(:test_pid_canary3) || self(), :sync_queue_ran)
+          :ok
+        end
+      end
+
       state = %PilotSyncRequest{
         client_sd: 5,
         parent_sd: 6,
         pre_sync_queue: [
           {ExecuteTestMissingPalmUserId, :sys_info_only_func, []}
         ],
-        sync_queue: [],
+        sync_queue: [{ExecuteTestSyncCanary3, :sync_canary, []}],
         post_sync_queue: []
       }
 
-      # palm_user_id missing → :palm_user_id_missing → skips sync_queue, runs post_sync (empty)
+      # palm_user_id missing → :palm_user_id_missing → skips sync_queue
       assert {:stop, :normal, _} = MainWorker.handle_info(:sync, state)
+      refute_received :sync_queue_ran
+
+      Process.unregister(:test_pid_canary3)
     end
 
     test "pre-sync returns error when sys_info is missing" do
@@ -566,18 +695,32 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
         end
       end
 
+      Process.register(self(), :test_pid_canary4)
+
+      defmodule ExecuteTestSyncCanary4 do
+        defstruct client_sd: -1
+
+        def sync_canary(_palm_user_id, _sys_info) do
+          send(Process.whereis(:test_pid_canary4) || self(), :sync_queue_ran)
+          :ok
+        end
+      end
+
       state = %PilotSyncRequest{
         client_sd: 5,
         parent_sd: 6,
         pre_sync_queue: [
           {ExecuteTestMissingSysInfo, :palm_user_id_only_func, []}
         ],
-        sync_queue: [],
+        sync_queue: [{ExecuteTestSyncCanary4, :sync_canary, []}],
         post_sync_queue: []
       }
 
-      # sys_info missing → :sys_info_missing → skips sync_queue, runs post_sync (empty)
+      # sys_info missing → :sys_info_missing → skips sync_queue
       assert {:stop, :normal, _} = MainWorker.handle_info(:sync, state)
+      refute_received :sync_queue_ran
+
+      Process.unregister(:test_pid_canary4)
     end
   end
 end

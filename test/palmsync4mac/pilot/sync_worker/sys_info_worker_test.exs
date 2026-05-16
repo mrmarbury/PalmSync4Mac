@@ -63,5 +63,18 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.SysInfoWorkerTest do
 
       assert {:ok, %PilotSysInfo{rom_version: 0x05020000}} = SysInfoWorker.pre_sync()
     end
+
+    # Contract: I1 — client_sd=-1 returns connection error
+    test "returns {:error, \"Not connected...\"} when client_sd is -1" do
+      case Process.whereis(SysInfoWorker) do
+        nil -> :ok
+        pid -> GenServer.stop(pid, :normal, 5000)
+      end
+
+      {:ok, _pid} =
+        SysInfoWorker.start_link(%SysInfoWorker{client_sd: -1, sys_info: %PilotSysInfo{}})
+
+      assert {:error, "Not connected to a Palm device?"} = SysInfoWorker.pre_sync()
+    end
   end
 end

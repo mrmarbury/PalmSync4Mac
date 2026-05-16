@@ -20,6 +20,10 @@ defmodule PalmSync4Mac.Pilot.Helper.SysInfo.SysInfoHelper do
 
         {:ok, sys_info}
 
+      {:ok, _client_sd, value} ->
+        Logger.error("Unexpected sysinfo format from NIF: #{inspect(value)}")
+        {:error, "Unexpected sysinfo format from NIF"}
+
       {:error, _client_sd, _result, message} ->
         Logger.error("Failed to read sysinfo: #{message}")
         {:error, message}
