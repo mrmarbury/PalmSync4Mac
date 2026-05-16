@@ -7,10 +7,10 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
   use ExUnit.Case, async: false
   use Patch
 
+  alias PalmSync4Mac.Comms.Pidlp.PilotSysInfo
   alias PalmSync4Mac.Entity.Device.PalmUser
   alias PalmSync4Mac.Entity.EventKit.CalendarEvent
   alias PalmSync4Mac.Entity.SyncStatus.EkCalendarDatebookSyncStatus
-  alias PalmSync4Mac.Comms.Pidlp.PilotSysInfo
   alias PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker
 
   setup do

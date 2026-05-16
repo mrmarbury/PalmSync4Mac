@@ -2,9 +2,9 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
   use ExUnit.Case, async: false
   use Patch
 
+  alias PalmSync4Mac.Pilot.Helper.SyncWorkers
   alias PalmSync4Mac.Pilot.SyncWorker.MainWorker
   alias PalmSync4Mac.Pilot.SyncWorker.MainWorker.PilotSyncRequest
-  alias PalmSync4Mac.Pilot.Helper.SyncWorkers
 
   @moduletag :capture_log
 
