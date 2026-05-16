@@ -70,6 +70,7 @@ lib/palmsync4mac/
 │   │   ├── sys_info_worker.ex               ← NEW: pre-sync worker
 │   │   ├── user_info_worker.ex              (unchanged)
 │   │   └── ...
+│   ├── sync_test.ex                          ← UPDATED: add SysInfoWorker to pre_queue
 │   └── ...
 
 test/palmsync4mac/pilot/
@@ -132,12 +133,12 @@ Pattern follows `UserInfoHelper.read_user_info/1` exactly.
 | Function | Signature | Returns |
 |----------|-----------|---------|
 | `start_link/1` | `start_link(worker_info \\ %__MODULE__{})` | GenServer.start_link result |
-| `sync/0` | `sync()` | `{:ok, %PilotSysInfo{}}` or `{:error, reason}` |
+| `pre_sync/0` | `pre_sync()` | `{:ok, %PilotSysInfo{}}` or `{:error, reason}` |
 
 Struct: `%__MODULE__{client_sd: -1, sys_info: %PilotSysInfo{}}`
 
 Behavior:
-- `sync/0`: calls `SysInfoHelper.read_sys_info(state.client_sd)`, stores result in state, returns it
+- `pre_sync/0`: calls `SysInfoHelper.read_sys_info(state.client_sd)`, stores result in state, returns it
 - No DB write — sys_info is per-sync context only
 - No post_sync — unlike UserInfoWorker, there's nothing to write back to the device
 
@@ -157,7 +158,17 @@ Example:
 → {AppointmentWorker, :sync_to_palm, ["palm-user-uuid", %PilotSysInfo{rom_version: 0x05040000, ...}]}
 ```
 
-`run_pre_sync` must now accumulate both `palm_user_id` (from `UserInfoWorker.pre_sync/1`) and `sys_info` (from `SysInfoWorker.sync/0`).
+`run_pre_sync` must now accumulate both `palm_user_id` (from `UserInfoWorker.pre_sync/1`) and `sys_info` (from `SysInfoWorker.pre_sync/0`).
+
+The accumulator is a map `%{palm_user_id: nil, sys_info: nil}`. Each pre-sync MFA's return value is pattern-matched:
+- `is_binary(value)` → accumulator key `palm_user_id`
+- `is_struct(value, PilotSysInfo)` → accumulator key `sys_info`
+- `:ok` or `{:ok, _}` (non-matching, e.g. MiscWorker.time_sync returning `:ok`) → skip, continue without updating accumulator
+
+After `reduce_while`, validate both keys are non-nil:
+- `palm_user_id == nil` → `{:error, :palm_user_id_missing}`
+- `sys_info == nil` → `{:error, :sys_info_missing}`
+- Both present → `{:ok, %{palm_user_id: ..., sys_info: ...}}`
 
 Both are injected as the LAST arguments. `palm_user_id` is always last-1, `sys_info` is always last. This preserves the existing `palm_user_id` position and adds `sys_info` after it.
 
@@ -188,7 +199,7 @@ Module body unchanged — only namespace changes.
 | I1 | `SysInfoHelper.read_sys_info/1` returns `{:ok, %PilotSysInfo{}}` on success, `{:error, reason}` on failure |
 | I2 | `rom_version` is a `non_neg_integer`. `0x05020000` = Palm OS 5.2 (CalendarDB threshold). `0x05040000` = Palm OS 5.4 (Palm TX) |
 | I3 | `inject_sync_context/3` appends `[palm_user_id, sys_info]` as the last two args to each sync queue MFA |
-| I4 | Pre-sync fails fast if **either** `UserInfoWorker.pre_sync/1` or `SysInfoWorker.sync/0` fails — skip sync_queue, run post_sync for protocol cleanup |
+| I4 | Pre-sync fails fast if **either** `UserInfoWorker.pre_sync/1` or `SysInfoWorker.pre_sync/0` fails — skip sync_queue, run post_sync for protocol cleanup. Rationale: `rom_version` is required for version-branching; fallback to DatebookDB would silently lose location data (DateBook v1 has no location field). |
 | I5 | Post-sync queue MFAs are NOT affected by `inject_sync_context` — no injection into post_sync |
 | I6 | No DB persistence of `PilotSysInfo` — per-sync context only |
 | I7 | `SyncWorkers` module lives under `PalmSync4Mac.Pilot.Helper` |
@@ -248,9 +259,9 @@ Module body unchanged — only namespace changes.
 
 | Test | Invariant |
 |------|-----------|
-| `sync/0` returns `{:ok, %PilotSysInfo{}}` when helper succeeds | I1 |
-| `sync/0` returns `{:error, reason}` when helper fails | I1 |
-| `sync/0` stores sys_info in state | — |
+| `pre_sync/0` returns `{:ok, %PilotSysInfo{}}` when helper succeeds | I1 |
+| `pre_sync/0` returns `{:error, reason}` when helper fails | I1 |
+| `pre_sync/0` stores sys_info in state | — |
 
 ### 9.3 MainWorker injection tests
 
@@ -294,48 +305,33 @@ Module body unchanged — only namespace changes.
 
 ## 12. Review Findings (2026-05-14)
 
-**Status**: PENDING — engineer to review one by one before BUILD.
+**Status**: RESOLVED — all 5 issues accepted and incorporated into contract.
 
-### 🔴 Issue 1: Unifex spec namespace conflict
+### 🔴 Issue 1: Unifex spec namespace conflict — RESOLVED
 
 `pidlp.spec.exs` line 27 uses bare `%PilotSysInfo{}` for the `sys_info` type. Unifex will auto-generate a struct at that bare name. If we also create `PalmSync4Mac.Comms.Pidlp.PilotSysInfo` manually, we get two incompatible structs.
 
-**Fix**: Update `pidlp.spec.exs` to use `%PalmSync4Mac.Comms.Pidlp.PilotSysInfo{}` — same pattern as the `pilot_user` type (line 6, which already uses the full module path). Add this to the contract task list.
+**Resolution**: Update `pidlp.spec.exs` to use `%PalmSync4Mac.Comms.Pidlp.PilotSysInfo{}` — same pattern as the `pilot_user` type (line 6, which already uses the full module path). Added to BUILD tasks.
 
-### 🔴 Issue 2: `run_pre_sync` accumulation mechanism unspecified
+### 🔴 Issue 2: `run_pre_sync` accumulation mechanism unspecified — RESOLVED
 
-Current `run_pre_sync` uses `Enum.reduce_while` with a single-value accumulator and `is_binary` guard to extract `palm_user_id`. This:
-- Cannot accumulate two values (`palm_user_id` + `sys_info`)
-- The `{:ok, _}` clause (line 182-183) swallows non-binary returns — `{:ok, %PilotSysInfo{}}` would be silently discarded
-- The guard `when is_binary(palm_user_id)` (line 179) would NOT match a `PilotSysInfo` struct
+Current `run_pre_sync` uses `Enum.reduce_while` with a single-value accumulator and `is_binary` guard to extract `palm_user_id`. This cannot accumulate two values (`palm_user_id` + `sys_info`).
 
-**Fix**: Rewrite with map accumulator:
-```elixir
-%{palm_user_id: nil, sys_info: nil}
-```
-Pattern-match on return struct type to populate the right key:
+**Resolution**: Rewrite with map accumulator `%{palm_user_id: nil, sys_info: nil}`. Pattern-match on return struct type:
 - `is_binary(value)` → `palm_user_id`
 - `is_struct(value, PilotSysInfo)` → `sys_info`
-- `:ok` or `{:ok, _}` (non-matching) → skip, continue
+- `:ok` or `{:ok, _}` (non-matching, e.g. MiscWorker.time_sync returns `:ok`) → skip, continue
 
-After reduce, validate both keys are non-nil. If either is nil, return `{:error, :palm_user_id_missing}` or `{:error, :sys_info_missing}`.
+After reduce, validate both keys are non-nil. If either is nil, return `{:error, :palm_user_id_missing}` or `{:error, :sys_info_missing}`. Added to §4.4 design.
 
-Add explicit design section to contract §4.4.
+### 🟡 Issue 3: `SysInfoWorker.sync/0` naming convention — RESOLVED
 
-### 🟡 Issue 3: `SysInfoWorker.sync/0` naming convention
+**Resolution**: Rename to `pre_sync/0`. MFA in queue becomes `{SysInfoWorker, :pre_sync, []}`. Updated throughout contract.
 
-`UserInfoWorker` uses `pre_sync/1` and `post_sync/0`. `MiscWorker` uses `time_sync/0`. The contract calls SysInfoWorker's function `sync/0` — breaks the naming convention.
+### 🟡 Issue 4: SysInfoWorker failure should be fatal — needs rationale — RESOLVED
 
-**Fix**: Rename to `pre_sync/0`. MFA in queue becomes `{SysInfoWorker, :pre_sync, []}`.
+**Resolution**: Added rationale to invariant I4: "SysInfoWorker failure is fatal because `rom_version` is required for version-branching. Fallback to DatebookDB would silently lose location data (DateBook v1 has no location field)."
 
-### 🟡 Issue 4: SysInfoWorker failure should be fatal — needs explicit decision
+### 🟡 Issue 5: `sync_test.ex` needs SysInfoWorker in pre_queue — RESOLVED
 
-Contract I4 says pre-sync fails fast if either worker fails, but doesn't explain WHY. Without `rom_version`, AppointmentWorker can't version-branch. Falling back to DatebookDB would silently lose location data (DateBook v1 has no location field). This is a data loss scenario, not just a degradation.
-
-**Fix**: Add invariant I4 rationale: "SysInfoWorker failure is fatal because `rom_version` is required for version-branching. Fallback to DatebookDB would silently lose location data."
-
-### 🟡 Issue 5: `sync_test.ex` needs SysInfoWorker in pre_queue
-
-`lib/palmsync4mac/pilot/sync_test.ex` defines the pre_sync_queue as `[MiscWorker.time_sync, UserInfoWorker.pre_sync]`. After D-1, it must also include `{SysInfoWorker, :pre_sync, []}`. Contract §3 file structure doesn't mention this file.
-
-**Fix**: Add `sync_test.ex` to the file structure table as UPDATED.
+**Resolution**: Added `sync_test.ex` to the file structure table as UPDATED.

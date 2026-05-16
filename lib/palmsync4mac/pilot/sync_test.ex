@@ -6,13 +6,15 @@ defmodule PalmSync4Mac.Pilot.SyncTest do
   alias PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker
   alias PalmSync4Mac.Pilot.SyncWorker.MainWorker
   alias PalmSync4Mac.Pilot.SyncWorker.MiscWorker
+  alias PalmSync4Mac.Pilot.SyncWorker.SysInfoWorker
   alias PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker
 
   # FIXME:#12 Remove this when the UI is ready and we have an integration test that can take this over
   def sync do
     pre_queue = [
       {MiscWorker, :time_sync, []},
-      {UserInfoWorker, :pre_sync, []}
+      {UserInfoWorker, :pre_sync, []},
+      {SysInfoWorker, :pre_sync, []}
     ]
 
     post_queue = [
