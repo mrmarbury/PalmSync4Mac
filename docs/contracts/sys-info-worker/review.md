@@ -27,7 +27,7 @@
 
 ## Findings
 
-### 🟡 Gap 1: Empty `pre_sync_queue` bypasses validation (logic bug)
+### 🟡 Gap 1: Empty `pre_sync_queue` bypasses validation (logic bug) — RESOLVED
 
 **Location**: `lib/palmsync4mac/pilot/sync_worker/main_worker.ex:168`
 
@@ -44,17 +44,13 @@ This contradicts invariant I4: "Pre-sync fails fast if either UserInfoWorker or 
 
 **Research — new device scenario**: Confirmed this is NOT a new-device edge case. `palm_user_id` is always an Ash UUID (`uuid_primary_key` on `PalmUser` resource), decoupled from the Palm device's integer `user_id`. A new device reports `user_id=0` from pilot-link, but `UserInfoHelper.update_username/2` calls `generate_random_string()` when username is blank, so `write_to_db/1` always returns a valid UUID. The `nil` case can only occur if `pre_sync_queue` is empty (UserInfoWorker never ran).
 
-**Proposed fix**:
-```elixir
-defp run_pre_sync([], _client_sd),
-  do: validate_pre_sync_result(%{palm_user_id: nil, sys_info: nil})
-```
+**Resolution**: Changed `run_pre_sync([], _)` to return `{:error, :pre_sync_not_configured}` — a distinct error atom that accurately describes the condition (no pre-sync workers ran, configuration error). Amended contract §6 with the new error case. The original proposed fix (routing through `validate_pre_sync_result`) was rejected because `:palm_user_id_missing` is misleading when the queue was empty — a different failure mode than "a worker ran but returned nil".
 
-**Suggested test**: Add a test in the "run_pre_sync — map accumulator validation" describe block verifying that an empty `pre_sync_queue` returns `{:error, :palm_user_id_missing}` instead of `{:ok, ...nil...}`.
+Added test: "pre-sync fails with :pre_sync_not_configured when queue is empty" — verifies sync_queue is skipped (canary not called) and post_sync still runs for protocol cleanup. 3 existing tests that omitted `pre_sync_queue` were fixed to include it.
 
 ---
 
-### 🟡 Gap 2: Test name contradicts assertion (misleading)
+### 🟡 Gap 2: Test name contradicts assertion (misleading) — RESOLVED
 
 **Location**: `test/palmsync4mac/pilot/sync_worker/main_worker_test.exs:543-550`
 
@@ -77,7 +73,7 @@ full_queue = sync_queue ++ state.post_sync_queue
 ```
 `inject_sync_context` is only called on `state.sync_queue`, never on `post_sync_queue`. But no test verifies this integration-level invariant.
 
-**Proposed fix**: Either rename the test to reflect what it actually tests ("inject_sync_context modifies all MFAs passed to it"), or replace it with an integration test verifying that `handle_info(:sync, ...)` does NOT pass `post_sync_queue` through `inject_sync_context`.
+**Resolution**: Replaced the misleading unit test with an integration test: "post-sync queue MFAs receive no injected palm_user_id or sys_info". The new test calls `handle_info(:sync, ...)` with a populated `post_sync_queue` containing a spy MFA. The spy takes zero args (correct for post_sync). If injection had occurred, the MFA call would crash with arity mismatch. The test verifies the spy is called with zero args — proving I5 holds at the integration boundary where the protection actually lives.
 
 ---
 
@@ -93,11 +89,13 @@ import PalmSync4Mac.Pilot.Helper.SysInfo.SysInfoHelper
 
 ---
 
-### 🟢 Gap 4: No explicit test for `:ok` skip path in accumulator (minor)
+### 🟢 Gap 4: No explicit test for `:ok` skip path in accumulator (minor) — RESOLVED
 
 The contract §4.4 specifies: `:ok` or `{:ok, _}` (non-matching) → skip, continue without updating accumulator. The `run_pre_sync` tests cover error paths and missing-value paths, but no test explicitly verifies that a pre-sync MFA returning `:ok` (like `MiscWorker.time_sync`) is correctly skipped while subsequent MFAs still populate the accumulator.
 
 The `ExecuteTest3` integration test includes pre_sync MFAs that all return `{:ok, value}`, so the `:ok` → skip path in `accumulate_pre_sync_result/3` is exercised only indirectly. A test with `[{Misc, :time_sync, []}, {UserInfoWorker, :pre_sync, []}, {SysInfoWorker, :pre_sync, []}]` would explicitly verify the skip behavior.
+
+**Resolution**: Added test ":ok return from pre-sync MFA is skipped, accumulator still populated" in the "run_pre_sync — map accumulator validation" describe block. Uses a fake module (`ExecuteTestOkSkip`) returning bare `:ok`, placed before `ExecuteTest3.pre_func` and `ExecuteTest3.sys_info_pre_func` in the pre_sync_queue. Verifies: (1) the `:ok` MFA was called, (2) sync_queue MFA received valid `palm_user_id` and `sys_info` from subsequent MFAs — proving the accumulator was not corrupted by the `:ok` return. MiscWorker test coverage will be addressed in a separate gate (see `docs/contracts/misc-worker/`).
 
 ---
 
@@ -105,4 +103,9 @@ The `ExecuteTest3` integration test includes pre_sync MFAs that all return `{:ok
 
 Implementation quality is high. Contract adherence is strong — all 9 invariants covered, all 5 SPECIFY-stage review issues resolved, file structure matches exactly, rename/move done cleanly via git rename.
 
-Gap 1 is a real logic bug (contradicts I4) but unreachable in current usage. Gap 2 is a misleading test name. Neither blocks merge. Gaps 3-4 are informational.
+All actionable gaps resolved:
+- Gap 1 (logic bug): Fixed — `run_pre_sync([], _)` now returns `{:error, :pre_sync_not_configured}`. Contract §6 amended.
+- Gap 2 (misleading test): Fixed — replaced with I5 integration test verifying post_sync MFAs receive zero injected args.
+- Gap 4 (`:ok` skip path): Fixed — explicit test verifying `:ok` return is skipped while accumulator is still populated.
+
+Gap 3 (informational, no action). MiscWorker test coverage deferred to a separate gate.
