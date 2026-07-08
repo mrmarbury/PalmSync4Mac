@@ -166,6 +166,8 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       :ok
     end
 
+    # Contract: I4 — empty pre_sync_queue means neither UserInfoWorker nor SysInfoWorker ran.
+    # pre_sync returns {:error, :pre_sync_not_configured}, sync_queue is skipped, post_sync runs.
     test "stops normally when all queues are empty" do
       state = %PilotSyncRequest{
         client_sd: 5,
@@ -261,6 +263,10 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       state = %PilotSyncRequest{
         client_sd: 5,
         parent_sd: 6,
+        pre_sync_queue: [
+          {ExecuteTest3, :pre_func, []},
+          {ExecuteTest3, :sys_info_pre_func, []}
+        ],
         sync_queue: [{ExecuteTest1, :test_func, []}]
       }
 
@@ -276,6 +282,10 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       state = %PilotSyncRequest{
         client_sd: 5,
         parent_sd: 6,
+        pre_sync_queue: [
+          {ExecuteTest3, :pre_func, []},
+          {ExecuteTest3, :sys_info_pre_func, []}
+        ],
         sync_queue: [
           {ExecuteTest2, :first_func, []},
           {ExecuteTest2, :second_func, []}
@@ -321,6 +331,10 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       state = %PilotSyncRequest{
         client_sd: 5,
         parent_sd: 6,
+        pre_sync_queue: [
+          {ExecuteTest3, :pre_func, []},
+          {ExecuteTest3, :sys_info_pre_func, []}
+        ],
         sync_queue: [
           {ExecuteTest5, :error_func, []},
           {ExecuteTest5, :success_func, []}
@@ -540,13 +554,42 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       assert Enum.at(args, 1) == sys_info
     end
 
-    test "post-sync queue MFAs are unchanged by inject_sync_context" do
-      post_mfas = [{PostModule, :post_func, []}]
-      sys_info = %PalmSync4Mac.Comms.Pidlp.PilotSysInfo{rom_version: 0x05020000}
+    # Contract: I5 — post_sync_queue MFAs are NOT affected by inject_sync_context.
+    # The protection lives in handle_info(:sync) which only calls inject_sync_context
+    # on state.sync_queue, never on post_sync_queue. This integration test verifies
+    # that a post_sync MFA receives zero injected args.
+    test "post-sync queue MFAs receive no injected palm_user_id or sys_info" do
+      defmodule ExecuteTestPostSyncSpy do
+        defstruct client_sd: -1
 
-      result = MainWorker.inject_sync_context(post_mfas, "uuid", sys_info)
+        def post_spy do
+          send(Process.whereis(:test_pid_post_spy) || self(), :post_sync_ran_with_zero_args)
+          :ok
+        end
+      end
 
-      assert result != post_mfas
+      Process.register(self(), :test_pid_post_spy)
+
+      patch(SyncWorkers, :start_child, fn _child_spec -> {:ok, self()} end)
+      patch(PalmSync4Mac.Comms.Pidlp, :pilot_disconnect, fn _, _ -> {:ok, 5, 6} end)
+      patch(SyncWorkers, :which_children, fn -> [] end)
+
+      state = %PilotSyncRequest{
+        client_sd: 5,
+        parent_sd: 6,
+        pre_sync_queue: [
+          {ExecuteTest3, :pre_func, []},
+          {ExecuteTest3, :sys_info_pre_func, []}
+        ],
+        sync_queue: [],
+        post_sync_queue: [{ExecuteTestPostSyncSpy, :post_spy, []}]
+      }
+
+      MainWorker.handle_info(:sync, state)
+
+      assert_received :post_sync_ran_with_zero_args
+
+      Process.unregister(:test_pid_post_spy)
     end
   end
 
@@ -721,6 +764,96 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       refute_received :sync_queue_ran
 
       Process.unregister(:test_pid_canary4)
+    end
+
+    # Contract: I4 + §6 — empty pre_sync_queue is a configuration error.
+    # Neither UserInfoWorker nor SysInfoWorker ran. Must fail fast with
+    # :pre_sync_not_configured, skip sync_queue, and still run post_sync.
+    test "pre-sync fails with :pre_sync_not_configured when queue is empty" do
+      defmodule ExecuteTestSyncCanary5 do
+        defstruct client_sd: -1
+
+        def sync_canary(_palm_user_id, _sys_info) do
+          send(Process.whereis(:test_pid_canary5) || self(), :sync_queue_ran)
+          :ok
+        end
+      end
+
+      defmodule ExecuteTestPostSyncCanary do
+        defstruct client_sd: -1
+
+        def post_canary do
+          send(Process.whereis(:test_pid_canary5) || self(), :post_sync_ran)
+          :ok
+        end
+      end
+
+      Process.register(self(), :test_pid_canary5)
+
+      state = %PilotSyncRequest{
+        client_sd: 5,
+        parent_sd: 6,
+        pre_sync_queue: [],
+        sync_queue: [{ExecuteTestSyncCanary5, :sync_canary, []}],
+        post_sync_queue: [{ExecuteTestPostSyncCanary, :post_canary, []}]
+      }
+
+      assert {:stop, :normal, _} = MainWorker.handle_info(:sync, state)
+
+      refute_received :sync_queue_ran
+      assert_received :post_sync_ran
+
+      Process.unregister(:test_pid_canary5)
+    end
+
+    # Contract: §4.4 — :ok (non-matching) → skip, continue without updating accumulator.
+    # A pre-sync MFA returning bare :ok (e.g. MiscWorker.time_sync) must not corrupt
+    # the accumulator. Subsequent MFAs still populate palm_user_id and sys_info.
+    test ":ok return from pre-sync MFA is skipped, accumulator still populated" do
+      defmodule ExecuteTestOkSkip do
+        defstruct client_sd: -1
+
+        def ok_func do
+          send(Process.whereis(:test_pid_ok_skip) || self(), :ok_func_called)
+          :ok
+        end
+      end
+
+      defmodule ExecuteTestOkSync do
+        defstruct client_sd: -1
+
+        def sync_verify(palm_user_id, sys_info) do
+          send(
+            Process.whereis(:test_pid_ok_skip) || self(),
+            {:sync_received, palm_user_id, sys_info}
+          )
+
+          :ok
+        end
+      end
+
+      Process.register(self(), :test_pid_ok_skip)
+
+      state = %PilotSyncRequest{
+        client_sd: 5,
+        parent_sd: 6,
+        pre_sync_queue: [
+          {ExecuteTestOkSkip, :ok_func, []},
+          {ExecuteTest3, :pre_func, []},
+          {ExecuteTest3, :sys_info_pre_func, []}
+        ],
+        sync_queue: [{ExecuteTestOkSync, :sync_verify, []}],
+        post_sync_queue: []
+      }
+
+      MainWorker.handle_info(:sync, state)
+
+      assert_received :ok_func_called
+
+      assert_received {:sync_received, "palm-user-uuid",
+                       %PalmSync4Mac.Comms.Pidlp.PilotSysInfo{rom_version: 0x05040000}}
+
+      Process.unregister(:test_pid_ok_skip)
     end
   end
 end
