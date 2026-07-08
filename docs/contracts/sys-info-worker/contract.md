@@ -217,6 +217,7 @@ Module body unchanged — only namespace changes.
 | UserInfoWorker succeeds but SysInfoWorker fails | Pre-sync is fatal — skip sync_queue, run post_sync |
 | SysInfoWorker succeeds but UserInfoWorker fails | Pre-sync is fatal — skip sync_queue, run post_sync |
 | `sys_info` is nil after successful pre-sync | `{:error, :sys_info_missing}` — bug, not runtime condition |
+| `pre_sync_queue` is empty (no workers ran) | `{:error, :pre_sync_not_configured}` — configuration error, skip sync_queue, run post_sync |
 
 ---
 
