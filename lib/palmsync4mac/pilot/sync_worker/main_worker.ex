@@ -165,7 +165,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
     end
   end
 
-  # Contract: §6 — empty pre_sync_queue is a configuration error, not a runtime condition.
+  # Empty pre_sync_queue is a configuration error, not a runtime condition.
   # Neither UserInfoWorker nor SysInfoWorker ran, so we cannot have palm_user_id or sys_info.
   # Fail fast with :pre_sync_not_configured — sync_queue is skipped, post_sync runs for cleanup.
   defp run_pre_sync([], _client_sd), do: {:error, :pre_sync_not_configured}

@@ -166,7 +166,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       :ok
     end
 
-    # Contract: I4 — empty pre_sync_queue means neither UserInfoWorker nor SysInfoWorker ran.
+    # Empty pre_sync_queue means neither UserInfoWorker nor SysInfoWorker ran.
     # pre_sync returns {:error, :pre_sync_not_configured}, sync_queue is skipped, post_sync runs.
     test "stops normally when all queues are empty" do
       state = %PilotSyncRequest{
@@ -348,7 +348,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       Process.unregister(:test_pid_exe5)
     end
 
-    # Contract: I9 — every sync_queue MFA receives both palm_user_id and sys_info
+    # Every sync_queue MFA receives both palm_user_id and sys_info
     test "every sync_queue MFA receives both palm_user_id and sys_info in correct positions" do
       defmodule ExecuteTestMulti1 do
         defstruct client_sd: -1
@@ -554,11 +554,24 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       assert Enum.at(args, 1) == sys_info
     end
 
-    # Contract: I5 — post_sync_queue MFAs are NOT affected by inject_sync_context.
+    # post_sync_queue MFAs are NOT affected by inject_sync_context.
     # The protection lives in handle_info(:sync) which only calls inject_sync_context
     # on state.sync_queue, never on post_sync_queue. This integration test verifies
-    # that a post_sync MFA receives zero injected args.
+    # that a post_sync MFA receives zero injected args, while a sync_queue MFA does.
     test "post-sync queue MFAs receive no injected palm_user_id or sys_info" do
+      defmodule ExecuteTestSyncWithInjection do
+        defstruct client_sd: -1
+
+        def sync_func(palm_user_id, sys_info) do
+          send(
+            Process.whereis(:test_pid_post_spy) || self(),
+            {:sync, palm_user_id, sys_info}
+          )
+
+          :ok
+        end
+      end
+
       defmodule ExecuteTestPostSyncSpy do
         defstruct client_sd: -1
 
@@ -581,11 +594,14 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
           {ExecuteTest3, :pre_func, []},
           {ExecuteTest3, :sys_info_pre_func, []}
         ],
-        sync_queue: [],
+        sync_queue: [{ExecuteTestSyncWithInjection, :sync_func, []}],
         post_sync_queue: [{ExecuteTestPostSyncSpy, :post_spy, []}]
       }
 
       MainWorker.handle_info(:sync, state)
+
+      assert_received {:sync, "palm-user-uuid",
+                       %PalmSync4Mac.Comms.Pidlp.PilotSysInfo{rom_version: 0x05040000}}
 
       assert_received :post_sync_ran_with_zero_args
 
@@ -766,7 +782,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       Process.unregister(:test_pid_canary4)
     end
 
-    # Contract: I4 + §6 — empty pre_sync_queue is a configuration error.
+    # Empty pre_sync_queue is a configuration error.
     # Neither UserInfoWorker nor SysInfoWorker ran. Must fail fast with
     # :pre_sync_not_configured, skip sync_queue, and still run post_sync.
     test "pre-sync fails with :pre_sync_not_configured when queue is empty" do
@@ -806,7 +822,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
       Process.unregister(:test_pid_canary5)
     end
 
-    # Contract: §4.4 — :ok (non-matching) → skip, continue without updating accumulator.
+    # :ok (non-matching) → skip, continue without updating accumulator.
     # A pre-sync MFA returning bare :ok (e.g. MiscWorker.time_sync) must not corrupt
     # the accumulator. Subsequent MFAs still populate palm_user_id and sys_info.
     test ":ok return from pre-sync MFA is skipped, accumulator still populated" do
