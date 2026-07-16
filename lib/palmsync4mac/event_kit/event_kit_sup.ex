@@ -13,7 +13,7 @@ defmodule PalmSync4Mac.EventKit.EventKitSup do
 
     children = [
       {PalmSync4Mac.EventKit.PortHandler, []},
-      {PalmSync4Mac.EventKit.CalendarEventWorker, [calendar_names]}
+      {PalmSync4Mac.EventKit.CalendarEventWorker, calendar_names}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)
