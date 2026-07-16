@@ -17,6 +17,9 @@ config :palm_sync_4_mac,
   # Must be a non-negative integer (unsigned long in pilot-link C API).
   # 0x50534D = ASCII "PSM" (PalmSync4Mac), displayed as 5263635 decimal.
   # The Palm OS uses this to track which application last synced with the device.
-  palm_viewer_id: 0x50534D
+  palm_viewer_id: 0x50534D,
+  # Apple Calendar name to sync with Palm device.
+  # CalendarEventWorker reads events from this calendar via EventKit.
+  apple_calendar_name: "Palm"
 
 import_config "#{config_env()}.exs"
