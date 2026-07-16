@@ -11,9 +11,7 @@ defmodule PalmSync4Mac.Pilot.Helper.SysInfo.SysInfoHelper do
 
   def read_sys_info(client_sd) do
     case Pidlp.read_sysinfo(client_sd) do
-      {:ok, _client_sd, sys_info_map} when is_map(sys_info_map) ->
-        sys_info = struct(PilotSysInfo, sys_info_map)
-
+      {:ok, _client_sd, %PilotSysInfo{} = sys_info} ->
         Logger.info(
           "Read SysInfo: rom_version=0x#{Integer.to_string(sys_info.rom_version, 16)}, prod_id=#{sys_info.prod_id}"
         )

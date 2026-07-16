@@ -37,7 +37,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.SysInfoWorkerTest do
       }
 
       patch(Pidlp, :read_sysinfo, fn _sd ->
-        {:ok, 42, Map.from_struct(fake_sys_info)}
+        {:ok, 42, fake_sys_info}
       end)
 
       assert {:ok, %PilotSysInfo{rom_version: 0x05040000} = result} = SysInfoWorker.pre_sync()
@@ -56,7 +56,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.SysInfoWorkerTest do
       fake_sys_info = %PilotSysInfo{rom_version: 0x05020000}
 
       patch(Pidlp, :read_sysinfo, fn _sd ->
-        {:ok, 42, Map.from_struct(fake_sys_info)}
+        {:ok, 42, fake_sys_info}
       end)
 
       SysInfoWorker.pre_sync()
@@ -64,7 +64,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.SysInfoWorkerTest do
       assert {:ok, %PilotSysInfo{rom_version: 0x05020000}} = SysInfoWorker.pre_sync()
     end
 
-    # Contract: I1 — client_sd=-1 returns connection error
+    # client_sd=-1 returns connection error
     test "returns {:error, \"Not connected...\"} when client_sd is -1" do
       case Process.whereis(SysInfoWorker) do
         nil -> :ok

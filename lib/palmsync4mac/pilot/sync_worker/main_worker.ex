@@ -160,7 +160,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
         run_queue(rest)
 
       {:error, reason} ->
-        Logger.error("-> #{mod}.#{fun}(#{inspect(args)}) failed with reason: #{reason}")
+        Logger.error("-> #{mod}.#{fun}(#{inspect(args)}) failed with reason: #{inspect(reason)}")
         run_queue(rest)
     end
   end
