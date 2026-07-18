@@ -19,6 +19,28 @@ Please don't open any issues yet. I know that nothing is working. That's because
 - `pushd ports && swift build -c release ; popd`
 - `iex -S mix`
 
+### Test Database Setup
+
+The test suite uses a separate SQLite database (`test_.sqlite`) with Ash migrations. After pulling new code or updating dependencies, run:
+
+```bash
+MIX_ENV=test mix ash_sqlite.create
+MIX_ENV=test mix ash_sqlite.migrate
+```
+
+If you see "no such table" errors in tests, the test database is out of date — re-run the commands above.
+
+### Stale Build Cache
+
+If `mix` tasks fail with dependency version mismatches after updating deps (e.g. `ash 3.5.23 does not match ~> 3.7`), the `_build/` cache is stale. Mix reads compiled `.app` files for version info, not the lock file. Fix:
+
+```bash
+rm -rf _build
+mix deps.compile
+```
+
+This is caused by `mix deps.update` or pulling code that updated `mix.lock` without cleaning `_build/`.
+
 ## Dev Notes
 
 ### Getting New Compilable Dependencies

@@ -8,7 +8,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
   require Logger
 
   alias PalmSync4Mac.Comms.Pidlp
-  alias PalmSync4Mac.Pilot.SyncWorkers
+  alias PalmSync4Mac.Pilot.Helper.SyncWorkers
 
   typedstruct module: PilotSyncRequest do
     plugin(TypedStructLens)
@@ -17,7 +17,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
     field(:sync_queue, list(mfa()),
       default: [],
       doc:
-        "List of MFA to run in the main sync process. palm_user_id is always added as the last arg. Workers receive client_sd from GenServer state"
+        "List of MFA to run in the main sync process. palm_user_id and sys_info are always added as the last two args. Workers receive client_sd from GenServer state"
     )
 
     field(:pre_sync_queue, list(mfa()),
@@ -95,17 +95,18 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
     end
   end
 
-  # pre_sync returns the palm_user_id from UserInfoWorker, which we inject into all
-  # subsequent sync_queue MFAs so workers can associate records with the right device
+  # pre_sync returns palm_user_id and sys_info from UserInfoWorker/SysInfoWorker,
+  # which we inject into all subsequent sync_queue MFAs so workers can associate
+  # records with the right device and access device capabilities
   @impl true
   def handle_info(:sync, state) do
     Logger.info("Starting Sync 👷‍♀️")
 
     case run_pre_sync(state.pre_sync_queue, state.client_sd) do
-      {:ok, palm_user_id} ->
+      {:ok, %{palm_user_id: palm_user_id, sys_info: sys_info}} ->
         Logger.info("Pre-sync succeeded, palm_user_id: #{palm_user_id}")
 
-        sync_queue = inject_palm_user_id(state.sync_queue, palm_user_id)
+        sync_queue = inject_sync_context(state.sync_queue, palm_user_id, sys_info)
         full_queue = sync_queue ++ state.post_sync_queue
         do_sync(state, full_queue)
 
@@ -159,50 +160,62 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
         run_queue(rest)
 
       {:error, reason} ->
-        Logger.error("-> #{mod}.#{fun}(#{inspect(args)}) failed with reason: #{reason}")
+        Logger.error("-> #{mod}.#{fun}(#{inspect(args)}) failed with reason: #{inspect(reason)}")
         run_queue(rest)
     end
   end
 
-  # Returns {:ok, palm_user_id} if any pre_sync MFA returns one, {:ok, nil} if empty, {:error, reason} on failure
-  defp run_pre_sync([], _client_sd), do: {:ok, nil}
+  # Empty pre_sync_queue is a configuration error, not a runtime condition.
+  # Neither UserInfoWorker nor SysInfoWorker ran, so we cannot have palm_user_id or sys_info.
+  # Fail fast with :pre_sync_not_configured — sync_queue is skipped, post_sync runs for cleanup.
+  defp run_pre_sync([], _client_sd), do: {:error, :pre_sync_not_configured}
 
   defp run_pre_sync(mfas, client_sd) do
     start_queue(mfas, client_sd)
 
     mfas
-    |> Enum.reduce_while(nil, fn {mod, fun, args}, _acc ->
+    |> Enum.reduce_while(%{palm_user_id: nil, sys_info: nil}, fn {mod, fun, args}, acc ->
       case apply(mod, fun, args) do
-        :ok ->
-          {:cont, nil}
-
-        {:ok, palm_user_id} when is_binary(palm_user_id) ->
-          {:cont, palm_user_id}
-
-        {:ok, _} ->
-          {:cont, nil}
-
-        {:error, reason} ->
-          Logger.error("Pre-sync #{mod}.#{fun} failed: #{inspect(reason)}")
-          {:halt, {:error, reason}}
+        :ok -> {:cont, acc}
+        {:ok, value} -> {:cont, accumulate_pre_sync_result(acc, value)}
+        {:error, reason} -> halt_pre_sync(mod, fun, reason)
       end
     end)
-    |> case do
-      {:error, reason} -> {:error, reason}
-      palm_user_id when is_binary(palm_user_id) -> {:ok, palm_user_id}
-      _ -> {:ok, nil}
-    end
+    |> validate_pre_sync_result()
+  end
+
+  defp accumulate_pre_sync_result(acc, %PalmSync4Mac.Comms.Pidlp.PilotSysInfo{} = sys_info) do
+    %{acc | sys_info: sys_info}
+  end
+
+  defp accumulate_pre_sync_result(acc, value) when is_binary(value) do
+    %{acc | palm_user_id: value}
+  end
+
+  defp accumulate_pre_sync_result(acc, _value), do: acc
+
+  defp halt_pre_sync(mod, fun, reason) do
+    Logger.error("Pre-sync #{mod}.#{fun} failed: #{inspect(reason)}")
+    {:halt, {:error, reason}}
+  end
+
+  defp validate_pre_sync_result({:error, reason}), do: {:error, reason}
+  defp validate_pre_sync_result(%{palm_user_id: nil}), do: {:error, :palm_user_id_missing}
+  defp validate_pre_sync_result(%{sys_info: nil}), do: {:error, :sys_info_missing}
+
+  defp validate_pre_sync_result(%{palm_user_id: palm_user_id, sys_info: sys_info}) do
+    {:ok, %{palm_user_id: palm_user_id, sys_info: sys_info}}
   end
 
   @doc """
-  Appends palm_user_id as the last argument to each MFA in the queue.
+  Appends palm_user_id and sys_info as the last two arguments to each MFA in the sync queue.
 
-  Workers need palm_user_id to associate sync records with the correct device,
-  but it's only available after pre_sync runs. This function injects it after extraction.
+  palm_user_id is always arg N-1, sys_info is always arg N (the last arg).
+  Post-sync queue MFAs are NOT affected — no injection into post_sync.
   """
-  def inject_palm_user_id(mfas, palm_user_id) do
+  def inject_sync_context(mfas, palm_user_id, sys_info) do
     Enum.map(mfas, fn {mod, fun, args} ->
-      {mod, fun, args ++ [palm_user_id]}
+      {mod, fun, args ++ [palm_user_id, sys_info]}
     end)
   end
 

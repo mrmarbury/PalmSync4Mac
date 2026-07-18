@@ -24,7 +24,7 @@ type(
 )
 
 type(
-  sys_info :: %PilotSysInfo{
+  sys_info :: %PalmSync4Mac.Comms.Pidlp.PilotSysInfo{
     # unsigned long
     rom_version: uint64,
     # unsigned long

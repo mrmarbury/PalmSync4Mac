@@ -2,6 +2,9 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
   @moduledoc """
   Sync Worker to sync Apple calendar dates/Palm appointments.
   Uses EkCalendarDatebookSyncStatus join table for per-device sync tracking.
+
+  sys_info is injected by MainWorker as the last arg. Accepted but unused in Gate D-1;
+  Gate D-2 will use rom_version for version-branching.
   """
 
   use GenServer
@@ -22,10 +25,10 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
   end
 
   @doc """
-  Main sync entry point. palm_user_id is injected as the last argument by MainWorker
-  after UserInfoWorker extracts it during pre_sync.
+  Main sync entry point. palm_user_id and sys_info are injected as the last two arguments
+  by MainWorker after pre_sync extracts them.
   """
-  def sync_to_palm(palm_user_id) do
+  def sync_to_palm(palm_user_id, _sys_info) do
     GenServer.call(__MODULE__, {:sync_to_palm, palm_user_id})
   end
 
