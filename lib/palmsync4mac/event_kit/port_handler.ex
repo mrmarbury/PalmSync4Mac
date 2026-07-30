@@ -107,7 +107,7 @@ defmodule PalmSync4Mac.EventKit.PortHandler do
   end
 
   @impl true
-  def handle_info({port, {:exit_status, status}}, state) when port == state.port_ref do
+  def handle_info({port, {:exit_status, status}}, state) when port == state.port do
     IO.puts("Port exited with status: #{status}")
     {:stop, :port_terminated, state}
   end
