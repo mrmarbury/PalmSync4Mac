@@ -8,6 +8,21 @@ defmodule PalmSync4Mac.EventKit.PortHandlerTest do
 
   # Contract: PortHandler — E1 port exit
 
+  describe "init/1 trap_exit" do
+    test "sets trap_exit flag so terminate/2 fires on port EXIT signals" do
+      fake_port = make_ref()
+
+      patch(Port, :open, fn {:spawn, _cmd}, _opts -> fake_port end)
+      patch(System, :at_exit, fn _fun -> :ok end)
+
+      {:ok, pid} = PortHandler.start_link([])
+
+      assert {:trap_exit, true} = Process.info(pid, :trap_exit)
+
+      GenServer.stop(pid, :normal)
+    end
+  end
+
   describe "handle_info port exit (E1)" do
     test "stops GenServer with :port_terminated when port exits" do
       fake_port = make_ref()

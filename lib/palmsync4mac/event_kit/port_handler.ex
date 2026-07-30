@@ -25,6 +25,7 @@ defmodule PalmSync4Mac.EventKit.PortHandler do
   @impl true
   def init(_opts) do
     Logger.info("Starting EK Interface Swift Port")
+    Process.flag(:trap_exit, true)
 
     port =
       Port.open({:spawn, "./ports/.build/release/ek_calendar_interface"}, [
