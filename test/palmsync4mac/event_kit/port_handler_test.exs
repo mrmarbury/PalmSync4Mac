@@ -6,23 +6,11 @@ defmodule PalmSync4Mac.EventKit.PortHandlerTest do
 
   @moduletag :capture_log
 
-  # Contract: PortHandler — E1 port exit
-  # Contract: PortHandler — G1 request/response round-trip
-  # Contract: PortHandler — G2 malformed JSON in response
-  # Contract: PortHandler — G3 missing request_id in response
-  # Contract: PortHandler — G4 unknown request_id in response
-  # Contract: PortHandler — G5 data from wrong port ref
-  # Contract: PortHandler — G6 timeout fires
-  # Contract: PortHandler — G7 normalize_response_data
-  # Contract: PortHandler — G8 terminate closes port
-  # Contract: PortHandler — G9 request_id increments monotonically
-  # Contract: PortHandler — G10 binary path config
-
   # Port.open and Port.close are Erlang BIFs that Patch cannot intercept.
   # PortHandler wraps them in send_command/2 and close_port/1 (public functions)
   # which Patch CAN intercept. This allows unit testing without a real port.
 
-  describe "handle_info port exit (E1)" do
+  describe "handle_info port exit" do
     test "stops GenServer with :port_terminated when port exits" do
       fake_port = make_ref()
       state = %{port: fake_port, requests: %{}, request_id: 0}
@@ -43,7 +31,7 @@ defmodule PalmSync4Mac.EventKit.PortHandlerTest do
     end
   end
 
-  describe "handle_call get_calendar_events round-trip (G1)" do
+  describe "handle_call get_calendar_events round-trip" do
     test "sends command to port and returns response via handle_info" do
       fake_port = make_ref()
       from = {self(), make_ref()}
@@ -71,7 +59,7 @@ defmodule PalmSync4Mac.EventKit.PortHandlerTest do
     end
   end
 
-  describe "handle_info malformed JSON (G2)" do
+  describe "handle_info malformed JSON" do
     test "drops response and preserves state when JSON decode fails" do
       fake_port = make_ref()
       from = {self(), make_ref()}
@@ -84,7 +72,7 @@ defmodule PalmSync4Mac.EventKit.PortHandlerTest do
     end
   end
 
-  describe "handle_info missing request_id (G3)" do
+  describe "handle_info missing request_id" do
     test "drops response and preserves state when request_id is absent" do
       fake_port = make_ref()
       from = {self(), make_ref()}
@@ -99,7 +87,7 @@ defmodule PalmSync4Mac.EventKit.PortHandlerTest do
     end
   end
 
-  describe "handle_info unknown request_id (G4)" do
+  describe "handle_info unknown request_id" do
     test "drops response when request_id not in requests map" do
       fake_port = make_ref()
       from = {self(), make_ref()}
@@ -114,7 +102,7 @@ defmodule PalmSync4Mac.EventKit.PortHandlerTest do
     end
   end
 
-  describe "handle_info data from wrong port (G5)" do
+  describe "handle_info data from wrong port" do
     test "does not match data from a different port ref" do
       fake_port = make_ref()
       other_port = make_ref()
@@ -126,7 +114,7 @@ defmodule PalmSync4Mac.EventKit.PortHandlerTest do
     end
   end
 
-  describe "handle_info timeout (G6)" do
+  describe "handle_info timeout" do
     test "replies {:error, :timeout} and removes request from map" do
       fake_port = make_ref()
       from = {self(), make_ref()}
@@ -157,7 +145,7 @@ defmodule PalmSync4Mac.EventKit.PortHandlerTest do
     end
   end
 
-  describe "normalize_response_data (G7)" do
+  describe "normalize_response_data" do
     test "adds source: :apple to each event and removes request_id" do
       data = %{
         "request_id" => 1,
@@ -184,7 +172,7 @@ defmodule PalmSync4Mac.EventKit.PortHandlerTest do
     end
   end
 
-  describe "terminate/2 (G8)" do
+  describe "terminate/2" do
     test "closes the port on termination" do
       fake_port = make_ref()
       state = %{port: fake_port, requests: %{}, request_id: 0}
@@ -195,7 +183,7 @@ defmodule PalmSync4Mac.EventKit.PortHandlerTest do
     end
   end
 
-  describe "request_id monotonic increment (G9)" do
+  describe "request_id monotonic increment" do
     test "increments request_id across multiple handle_call invocations" do
       fake_port = make_ref()
       from1 = {self(), make_ref()}
@@ -219,7 +207,7 @@ defmodule PalmSync4Mac.EventKit.PortHandlerTest do
     end
   end
 
-  describe "binary path config (G10)" do
+  describe "binary path config" do
     test "uses configured binary path when set" do
       custom_path = "/custom/path/to/binary"
 
