@@ -41,6 +41,12 @@ mix deps.compile
 
 This is caused by `mix deps.update` or pulling code that updated `mix.lock` without cleaning `_build/`.
 
+## Configuration
+
+### Config Attibutes in `:palm_sync_4_mac`
+
+- `:swift_port_binary` - Override default Swift Calendar Event port binary. Default `./ports/.build/release/ek_calendar_interface`
+
 ## Dev Notes
 
 ### Getting New Compilable Dependencies
