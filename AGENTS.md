@@ -2,6 +2,13 @@
 
 Supersedes CLAUDE.md and INSTRUCTIONS.md (see git history for previous review-only rules). ADP-driven development mode.
 
+## Development Mode
+
+`ADP_MODE: teaching` (default for this repo — switch to `execution` per-session if speed is needed)
+
+- `teaching` → ADP/T: AI is Socratic mentor in BUILD. User writes all code. AI hints, grills, scaffolds, reviews.
+- `execution` → ADP: AI is executor in BUILD. Original protocol.
+
 ## Hard Constraints
 
 - NEVER introduce behavior not specified in the active Contract Sheet
@@ -13,17 +20,50 @@ Supersedes CLAUDE.md and INSTRUCTIONS.md (see git history for previous review-on
 - ALWAYS use `{:ok, result}` / `{:error, reason}` tuples (never raise on expected errors)
 - ALWAYS clean up resources: sockets, DB handles, pi_buffer, malloc'd strings
 
+### Teaching Mode Constraints (when ADP_MODE=teaching)
+
+- NEVER write implementation code the user should write — give hints, not answers
+- ALWAYS explain *why*, not just *what*
+- ALWAYS start hints at level 1 (conceptual), escalate only when user asks or struggles
+- ALWAYS proactively surface the invisible 20% (error handling, NIF safety, resource cleanup, observability)
+- NEVER give the answer outright — use Socratic questioning first
+- NEVER write code in BUILD stage — only in VERIFY (review fixes) or if user explicitly asks "show me"
+
 ## ADP Stage Awareness
 
 Current stage and AI role (set per session):
 - BOUND → Consultant (surfaces context, doesn't decide scope)
 - SPECIFY → Consultant (probes gaps, doesn't write contracts)
 - ARCHITECT → Consultant (proposes options, doesn't select)
-- BUILD → Executor (generates code from Contract Sheet + Architecture Decision)
-- VERIFY → Reviewer (runs compliance check, generates report)
+- BUILD → Mentor (teaching mode) or Executor (execution mode)
+- VERIFY → Reviewer (runs compliance check, generates report + learning assessment in teaching mode)
 - INTEGRATE → Reviewer (runs suite, reports results)
 
 Contract Sheet is the single source of truth. Code follows contracts.
+
+### BUILD in Teaching Mode (ADP/T)
+
+The AI is a Socratic mentor, not an executor. The user writes all code.
+
+**Hint Ladder** — start at level 1, escalate only when user asks or is stuck:
+
+| Level | What the AI gives | When to use |
+|---|---|---|
+| 1 | Conceptual hint: "Think about how OTP supervision trees work here" | Default starting point |
+| 2 | Pattern pointer: "Look at how SysInfoWorker handles this in sys_info_worker.ex" | User asks or struggles |
+| 3 | Skeleton: "Here are the function signatures you need, fill in the bodies" | User stuck for >2 attempts |
+| 4 | Pair programming: walk through the solution together | User explicitly asks "show me" |
+
+**Teaching Contract Extensions** (added to Contract Sheet in SPECIFY):
+- Concepts to learn — what Elixir/OTP/NIF/Swift patterns this contract teaches
+- Common pitfalls — mistakes a learner will likely make (sourced from LEARNINGS.md via Rocco)
+- Hint ladder — progressive hints from "think about X" → "look at pattern Y" → skeleton
+- Self-check questions — the user answers before declaring BUILD done
+
+**VERIFY in Teaching Mode** includes a learning assessment:
+- What the user understood well
+- What concepts need reinforcement
+- Recommended reading from Rocco's vault
 
 ## Build/Test/Lint Commands
 
@@ -90,43 +130,30 @@ These skills MUST be loaded for ANY task in this repo. They encode domain-specif
 | `elixir-testing` | ExUnit with Patch library for NIF mocking, Mox for external deps — test patterns are non-obvious |
 | `c-nifs-ports` | pidlp NIF bridge (Unifex/Bundlex), Erlang port for Swift — NIF safety and type mappings are critical |
 | `swift` | Swift EventKit port at `ports/` — builds with `pushd ports && swift build -c release ; popd` |
+| `adp-teaching-mode` | Teaching overlay for ADP — hint ladder, Socratic patterns, learning assessment. Required when ADP_MODE=teaching |
 
-**Enforcement**: Any `task()` delegation that touches Elixir, Ash, NIF, or Swift code MUST include all relevant skills in `load_skills`. When in doubt, include all of them.
+**Enforcement**: Any `task()` delegation that touches Elixir, Ash, NIF, or Swift code MUST include all relevant skills in `load_skills`. When in doubt, include all of them. When `ADP_MODE=teaching`, always include `adp-teaching-mode`.
 
-## Second Brain Integration
+## Rocco Integration
 
-Vault root: `/Users/marbury/Library/Mobile Documents/iCloud~md~obsidian/Documents/Vault`
-
-This repo is connected to a Second Brain vault (Obsidian). The vault holds domain context, decisions, learnings, and the ADP protocol itself. READ these vault files automatically at the indicated triggers — do not wait to be asked.
-
-**On EVERY session start:**
-- Read `LEARNINGS.md` — corrections and preferences that override default behavior
+Rocco (Hermes Agent on Discord) is the project memory and vault interface. The vault lives on openclaw (FreeBSD) at `/home/hermes/vault/`. Rocco is the sole interface — do NOT try to read vault files locally.
 
 **Before BOUND stage (every ADP cycle):**
-- Read `Projects/palmSync4Mac/ADP Transition.md` — transition status, open tasks, known issues
-- Read `Decisions.md` — grep for `PalmSync` entries, past decisions constrain new choices
-- Read `wiki/ai-engineering/agentic-development-protocol.md` — the full 6-stage protocol
+- Ask Rocco via Discord: `[palm_sync_4_mac] context for <feature>`
+- Rocco delivers: ADP Transition status, relevant Decisions, LEARNINGS.md, wiki patterns
 
 **Before SPECIFY stage:**
-- Read `wiki/elixir/` pages — domain patterns (why-elixir, phoenix-framework, hot-code-reloading, durableserver)
-- Read `LEARNINGS.md` again if it was updated during BOUND
+- Ask Rocco via Discord: `[palm_sync_4_mac] learnings and pitfalls for <module>`
+- Rocco delivers: project-specific pitfalls, patterns, and common mistakes from LEARNINGS.md
+- These feed the "Common pitfalls" section of teaching contracts
 
 **After VERIFY/INTEGRATE (cycle complete):**
-- Append new learnings to `LEARNINGS.md` (vault root)
-- Log architecture decisions to `Decisions.md` (vault root)
-- Update `Projects/palmSync4Mac/ADP Transition.md` — mark completed tasks
-- Suggest wiki promotions if reusable knowledge emerged
+- Send writeback to Rocco via Discord: `[palm_sync_4_mac] WRITEBACK — <summary>`
+- Include: what was done, key decisions, learnings, test results, open questions
+- Rocco ingests: updates LEARNINGS.md, Decisions.md, ADP Transition.md, wiki pages
 
-**Vault files by path:**
-
-| Path | Content | When to read |
-|---|---|---|
-| `LEARNINGS.md` | Corrections, preferences, patterns | Every session start + before SPECIFY |
-| `Decisions.md` | Decision log | Before BOUND |
-| `Projects/palmSync4Mac/ADP Transition.md` | Transition plan, status | Before BOUND |
-| `wiki/ai-engineering/agentic-development-protocol.md` | Full ADP protocol | Before BOUND |
-| `wiki/elixir/why-elixir.md` | BEAM concurrency, actor model | Before SPECIFY (if relevant) |
-| `wiki/elixir/phoenix-framework.md` | Phoenix patterns | Before SPECIFY (if relevant) |
-| `wiki/elixir/hot-code-reloading.md` | BEAM module swap | Before SPECIFY (if relevant) |
-| `wiki/elixir/durableserver.md` | Fault-tolerant GenServer | Before SPECIFY (if relevant) |
-| `Inbox.md` | Uncaptured ideas | When context seems incomplete |
+**How to talk to Rocco:**
+- Use the `tell-rocco` skill (loaded automatically)
+- @mention Rocco in `#general` to start a new thread
+- Follow-ups go in the auto-created thread (same ID as the first message)
+- Use `--file` for writebacks (avoids 2000 char limit)

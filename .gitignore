@@ -48,3 +48,4 @@ ek_interface
 # compiled NIF artifacts
 priv/bundlex/
 c_src/build/
+/.agents
