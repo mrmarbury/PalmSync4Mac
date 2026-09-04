@@ -7,7 +7,7 @@ let package = Package(
         .macOS("15.0")
     ],
     products: [
-        .executable(name: "ek_calendar_interface", targets: ["EKCalendarInterface"])
+        .executable(name: "ek_calendar_interface", targets: ["EKCalendarInterface"]),
     ],
     dependencies: [],
     targets: [

@@ -150,6 +150,7 @@ func processMessage(_ message: [String: Any]) -> String {
             let days = message["days"] as? Int ?? 13
             let calendar = message["calendar"] as? String ?? nil
             logger.info("get_events - days: \(days), calendar: \(calendar ?? "nil", privacy: .public)")
+
             Task {
                 await getCalendarEvents(
                     days: days, calendar: calendar, requestId: requestId)
@@ -171,6 +172,8 @@ func startMainLoop() {
             logger.info("Received message: \(message, privacy: .public)")
             let _ = processMessage(message)
         }
+        logger.info("stdin closed, exiting")
+        Foundation.exit(0)
     }
     RunLoop.main.run()
 }

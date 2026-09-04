@@ -25,9 +25,12 @@ defmodule PalmSync4Mac.EventKit.PortHandler do
   @impl true
   def init(_opts) do
     Logger.info("Starting EK Interface Swift Port")
+    Process.flag(:trap_exit, true)
+
+    binary_path = resolve_binary_path()
 
     port =
-      Port.open({:spawn, "./ports/.build/release/ek_calendar_interface"}, [
+      Port.open({:spawn, binary_path}, [
         :binary,
         :exit_status,
         packet: 4
@@ -45,7 +48,7 @@ defmodule PalmSync4Mac.EventKit.PortHandler do
   @impl true
   def terminate(_reason, %{port: port}) do
     Logger.info("Terminating EK Interface Swift Port")
-    Port.close(port)
+    close_port(port)
   end
 
   @impl true
@@ -67,7 +70,7 @@ defmodule PalmSync4Mac.EventKit.PortHandler do
 
     Logger.debug("Calendar Port will be called with: #{inspect(message)}")
 
-    Port.command(port, message)
+    send_command(port, message)
 
     timer_ref = Process.send_after(self(), {:timeout, new_request_id}, 5_000)
     new_requests = Map.put(requests, new_request_id, {from, timer_ref})
@@ -107,7 +110,7 @@ defmodule PalmSync4Mac.EventKit.PortHandler do
   end
 
   @impl true
-  def handle_info({port, {:exit_status, status}}, state) when port == state.port_ref do
+  def handle_info({port, {:exit_status, status}}, state) when port == state.port do
     IO.puts("Port exited with status: #{status}")
     {:stop, :port_terminated, state}
   end
@@ -127,7 +130,23 @@ defmodule PalmSync4Mac.EventKit.PortHandler do
     end
   end
 
-  defp normalize_response_data(data) do
+  def resolve_binary_path do
+    Application.get_env(
+      :palm_sync_4_mac,
+      :swift_port_binary,
+      "./ports/.build/release/ek_calendar_interface"
+    )
+  end
+
+  def send_command(port, message) do
+    Port.command(port, message)
+  end
+
+  def close_port(port) do
+    Port.close(port)
+  end
+
+  def normalize_response_data(data) do
     events_with_source =
       data
       |> Map.get("events", [])
