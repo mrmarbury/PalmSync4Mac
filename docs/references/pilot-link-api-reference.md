@@ -2,7 +2,7 @@
 
 > **Source**: `/Users/marbury/Projects/Cloned/pilot-link/` (IGNORE `bindings/` directory)
 > **Purpose**: RAG-like reference for BUILD stage — NIF implementations must call these functions correctly.
-> **Generated**: ADP Phase 1, SPECIFY stage (post-research synthesis)
+> **Generated**: Phase 1, SPECIFY pattern (post-research synthesis)
 
 ---
 

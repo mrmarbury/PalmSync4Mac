@@ -1,6 +1,6 @@
 ## Integration Check — Multi-Device Calendar Sync
 
-> **ADP Stage**: INTEGRATE
+> **Pattern**: INTEGRATE
 > **Date**: 2026-04-23
 > **Branch**: main (merged from feature/multi-device-sync via PR #13)
 
@@ -20,7 +20,7 @@ mix credo --strict: 11 design suggestions (all [D] low priority — FIXME tag, a
 mix compile: PASS (C compiler warnings in Unifex-generated NIF code — pre-existing, not from this feature)
 ```
 
-**Note**: `mix dialyzer` not run — dialyzer baseline not yet established for this project (deferred to ADP Phase 2).
+**Note**: `mix dialyzer` not run — dialyzer baseline not yet established for this project (deferred to Phase 2).
 
 ### CI
 

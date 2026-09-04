@@ -2,7 +2,7 @@
 
 **Feature**: SysInfoWorker — fetch device sysinfo during pre-sync, pass as context to sync workers
 **GitHub**: [mrmarbury/PalmSync4Mac#27](https://github.com/mrmarbury/PalmSync4Mac/issues/27)
-**ADP Stage**: SPECIFY → BUILD
+**Pattern**: SPECIFY → BUILD
 **Date**: 2026-05-14
 
 ---

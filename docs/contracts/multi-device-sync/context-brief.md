@@ -10,7 +10,7 @@ Transition CalendarEvent-to-Palm sync from 1:1 (single device) to 1:N (multiple 
 - `lib/palmsync4mac/pilot/sync_worker/main_worker.ex`: Orchestrator, runs pre_sync/sync/post_sync queues via MFA tuples
 - `lib/palmsync4mac/pilot/sync_worker/user_info_worker.ex`: Reads Palm user info, upserts PalmUser — does NOT return palm_user_id
 - `lib/palmsync4mac/pilot/pilot_sync_request.ex`: TypedStruct with sync queues — no palm_user_id field
-- `docs/design/calendar_event_design.md`: Pre-ADP design doc with proposed data model, sync logic, worker architecture, bidirectional future
+- `docs/design/calendar_event_design.md`: Earlier design doc with proposed data model, sync logic, worker architecture, bidirectional future
 
 ### Conventions to follow
 - Ash resources: `uuid_primary_key`, snake_case attributes, domain-based organization

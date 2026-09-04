@@ -1,6 +1,6 @@
 # Post-BUILD Code Review — SysInfoWorker Infrastructure (Gate D-1)
 
-> **ADP Stage**: Post-BUILD Review
+> **Pattern**: Post-BUILD Review
 > **Date**: 2026-06-29
 > **PR**: [mrmarbury/PalmSync4Mac#28](https://github.com/mrmarbury/PalmSync4Mac/pull/28)
 > **Branch**: `27-gate-d-1-sysinfoworker-infrastructure-struct-helper-pre-sync-worker-mainworker-context-injection`
