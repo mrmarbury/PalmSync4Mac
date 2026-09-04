@@ -1,6 +1,6 @@
 # Architecture Decision — Multi-Device Calendar Sync
 
-> **ADP Stage**: ARCHITECT
+> **Pattern**: ARCHITECT
 > **Date**: 2026-04-20
 > **Status**: Approved for BUILD
 
@@ -168,9 +168,9 @@ Current state → Required changes:
 | `end_of_sync` | (unused — must be wired) | ✓ Exists |
 | `set_sys_date_time` | MiscWorker | ✓ Working |
 
-### No new NIFs needed for this ADP cycle
+### No new NIFs needed for this cycle
 
-This cycle is **Mac→Palm write-only sync** (same direction as current implementation, just multi-device aware). The missing read NIFs (`dlp_ReadRecordById`, `dlp_ReadRecordByIndex`, `dlp_ReadNextModifiedRec`, `dlp_DeleteRecord`) are needed for **bidirectional sync** (future ADP cycle).
+This cycle is **Mac→Palm write-only sync** (same direction as current implementation, just multi-device aware). The missing read NIFs (`dlp_ReadRecordById`, `dlp_ReadRecordByIndex`, `dlp_ReadNextModifiedRec`, `dlp_DeleteRecord`) are needed for **bidirectional sync** (future cycle).
 
 ### Known NIF bugs to fix during BUILD
 

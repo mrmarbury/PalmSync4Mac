@@ -2,7 +2,7 @@
 
 **Feature**: Add Swift tests to GitHub Actions CI
 **GitHub**: [mrmarbury/PalmSync4Mac#20](https://github.com/mrmarbury/PalmSync4Mac/issues/20)
-**ADP Phase**: 2 prerequisite (Gate A for sync-from-palm #16)
+**Phase**: 2 prerequisite (Gate A for sync-from-palm #16)
 **Date**: 2026-05-07
 
 ---
@@ -75,4 +75,4 @@ Phase 2 (sync-from-palm) adds EventKit read operations to the Swift port. Withou
 
 - **Blocking**: [mrmarbury/PalmSync4Mac#16](https://github.com/mrmarbury/PalmSync4Mac/issues/16)
 - **Sync-from-palm context brief**: `docs/contracts/sync-from-palm/context-brief.md`
-- **ADP Transition**: vault `Projects/palmSync4Mac/ADP Transition.md` Phase 2
+- **Transition**: vault `Projects/palmSync4Mac/Transition.md` Phase 2

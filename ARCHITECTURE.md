@@ -1,6 +1,6 @@
 # PalmSync4Mac Architecture Reference
 
-Auto-generated from CLAUDE.md during ADP transition. This file is the codebase knowledge base — read it when you need domain context, not agent rules.
+The codebase knowledge base — read it when you need domain context, not agent rules.
 
 > Update this file when directory structure, supervision tree, NIF functions, or data flow changes.
 

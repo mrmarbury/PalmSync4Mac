@@ -2,7 +2,7 @@
 
 **Feature**: Add C unit tests with mocked device calls for pidlp.c
 **GitHub**: [mrmarbury/PalmSync4Mac#21](https://github.com/mrmarbury/PalmSync4Mac/issues/21)
-**ADP Phase**: 2 prerequisite (Gate B for sync-from-palm #16)
+**Phase**: 2 prerequisite (Gate B for sync-from-palm #16)
 **Date**: 2026-05-07
 
 ---
@@ -139,6 +139,6 @@ Compile `pidlp.c` normally but link against a mock `libpisock` instead of the re
 
 - **Blocking**: [mrmarbury/PalmSync4Mac#16](https://github.com/mrmarbury/PalmSync4Mac/issues/16)
 - **Sync-from-palm context brief**: `docs/contracts/sync-from-palm/context-brief.md`
-- **ADP Transition**: vault `Projects/palmSync4Mac/ADP Transition.md` Phase 2
+- **Transition**: vault `Projects/palmSync4Mac/Transition.md` Phase 2
 - **Patterns**: vault `wiki/elixir/palmsync4mac-patterns.md`
 - **NIF spec**: `c_src/palm_sync_4_mac/pidlp.spec.exs`

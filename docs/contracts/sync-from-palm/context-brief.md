@@ -2,7 +2,7 @@
 
 **Feature**: PalmSync4Mac #16 — Sync Datebook Appointments to Apple Calendar
 **GitHub**: [mrmarbury/PalmSync4Mac#16](https://github.com/mrmarbury/PalmSync4Mac/issues/16)
-**ADP Phase**: 2 (follows Phase 1: multi-device sync)
+**Phase**: 2 (follows Phase 1: multi-device sync)
 **Date**: 2026-05-07
 
 ---
@@ -142,10 +142,10 @@ From LEARNINGS.md, Decisions.md, and [[wiki/elixir/palmsync4mac-patterns]]:
 
 ## References
 
-- **ADP Transition**: `Projects/palmSync4Mac/ADP Transition.md` (vault)
+- **Transition**: `Projects/palmSync4Mac/Transition.md` (vault)
 - **Story file**: `Projects/palmSync4Mac/Stories/Sync Datebook Appointments to Apple Calendar.md` (vault)
 - **Phase 1 backlog**: `docs/contracts/multi-device-sync/backlog.md` (repo) — item #2
 - **Phase 1 contracts**: `docs/contracts/multi-device-sync/` (repo) — reference for contract style
 - **Wiki patterns**: [[wiki/elixir/palmsync4mac-patterns]]
-- **Wiki ADP**: [[wiki/ai-engineering/agentic-development-protocol]]
+- **Wiki ADP patterns**: [[wiki/ai-engineering/agentic-development-protocol]]
 - **Existing design doc**: `docs/design/calendar_event_design.md` (repo) — covers bidirectional architecture

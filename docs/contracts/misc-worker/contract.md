@@ -1,7 +1,7 @@
 # Contract Sheet — MiscWorker Test Coverage
 
 **Feature**: MiscWorker — comprehensive test coverage for time_sync and future misc sync functions
-**ADP Stage**: BOUND → SPECIFY (not yet started)
+**Pattern**: BOUND → SPECIFY (not yet started)
 **Date**: 2026-07-08
 **Origin**: Post-BUILD review of Gate D-1 (sys-info-worker) identified that MiscWorker has zero test coverage and is the canonical example for the `:ok` skip path in `run_pre_sync`.
 

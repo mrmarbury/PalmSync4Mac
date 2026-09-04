@@ -1,6 +1,6 @@
 ## Verification Report — Multi-Device Calendar Sync
 
-> **ADP Stage**: VERIFY
+> **Pattern**: VERIFY
 > **Date**: 2026-04-23
 > **Contracts**: C1 (EkCalendarDatebookSyncStatus), C2 (CalendarEvent Modifications), C3 (AppointmentWorker.sync_to_palm), C4 (MainWorker MFA Injection), C5 (UserInfoWorker.pre_sync)
 > **Post-BUILD fix**: Conditional supervisor startup restored (commit `a2490bd`) — `EventKitSup` and `PilotSyncSup` conditionally started via `Application.get_env` flags; test env sets both to `false`
@@ -106,7 +106,7 @@
 
 Not measured — mutation testing tool (e.g., `mutant` or `ex_machina_mutant`) not yet integrated in CI pipeline. Threshold: ≥85% (target for Phase 2).
 
-**Status**: ⚠️ Not measured. Manual code review performed. Mutation testing deferred to ADP Phase 2 (see ADP Transition.md).
+**Status**: ⚠️ Not measured. Manual code review performed. Mutation testing deferred to Phase 2 (see Transition.md).
 
 ### Edge cases tested beyond spec
 
@@ -121,7 +121,7 @@ Not measured — mutation testing tool (e.g., `mutant` or `ex_machina_mutant`) n
 - **C4 Invariant 2**: pre_sync failure path not directly tested. The contract specifies: "If pre_sync returns `{:error, _}`, skip sync_queue, run post_sync, terminate." No test exercises this path with the actual UserInfoWorker.pre_sync. The test infrastructure exists (Patch-based mocking) but this specific integration scenario is missing. **Risk: Low** — code review shows the pre_sync result is pattern-matched; `{:error, _}` causes sync_queue skip. However, the post_sync-always-runs guarantee is not mechanically verified.
 - **C3 Error: palm_user_id is nil**: Contract specifies `{:error, :palm_user_id_required}`. Not tested — the function signature accepts palm_user_id as a UUID from MainWorker injection, which is guaranteed non-nil by C4 Invariant 1. A guard clause exists but has no dedicated test. **Risk: Low** — would require deliberately passing nil, which MainWorker prevents.
 - **C3 Error: NIF process crash**: Contract says "let supervisor restart the worker. No join rows created." Not testable without deliberately crashing the NIF port process. **Risk: Low** — supervisor strategy handles this by design.
-- **Mutation score**: No mutation testing performed. **Risk: Medium** — vacuous test coverage is undetectable without mutation testing. Deferred to Phase 2 per ADP Transition.md.
+- **Mutation score**: No mutation testing performed. **Risk: Medium** — vacuous test coverage is undetectable without mutation testing. Deferred to Phase 2 per Transition.md.
 - **CalendarEvent Invariant 5 (data migration)**: Contract specifies "existing sync_to_palm_date and rec_id values migrated to EkCalendarDatebookSyncStatus before removal." No integration test seeds CalendarEvent with old values, runs migration, verifies join table. **Risk: Low** — this is a fresh project with no production data to migrate; the migration removes columns from a table that never had production data with those columns populated.
 
 ### Verification summary
@@ -135,4 +135,4 @@ Not measured — mutation testing tool (e.g., `mutant` or `ex_machina_mutant`) n
 | C5 — UserInfoWorker.pre_sync | 6/6 | 0 | ✅ VERIFIED |
 | **Total** | **61/65** | **4** | **✅ ALL CONTRACTS VERIFIED** |
 
-All unverified items are low-risk and documented. None block merge. Mutation testing deferred to ADP Phase 2.
+All unverified items are low-risk and documented. None block merge. Mutation testing deferred to Phase 2.

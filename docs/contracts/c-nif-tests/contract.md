@@ -2,7 +2,7 @@
 
 **Feature**: Gate B for sync-from-palm (#16)
 **GitHub**: [mrmarbury/PalmSync4Mac#21](https://github.com/mrmarbury/PalmSync4Mac/issues/21)
-**ADP Stage**: SPECIFY → BUILD
+**Pattern**: SPECIFY → BUILD
 **Date**: 2026-05-14
 
 ---
