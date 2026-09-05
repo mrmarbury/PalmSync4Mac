@@ -163,6 +163,219 @@ final class CalendarEventsTests: XCTestCase {
         XCTAssertEqual(jsonObject["request_id"] as? Int, 555)
     }
 
+    // MARK: - Alarm Extraction Tests
+
+    func testAlarmExtractionNoAlarms() async {
+        mockStore.shouldGrantAccess = true
+        let calendar = EKCalendar(for: .event, eventStore: mockStore)
+        calendar.title = "Work"
+        mockStore.mockCalendars = [calendar]
+
+        let event = EKEvent(eventStore: mockStore)
+        event.title = "No Alarm"
+        event.startDate = Date()
+        event.endDate = Date().addingTimeInterval(3600)
+        event.calendar = calendar
+        mockStore.mockEvents = [event]
+
+        let output = await withCapturedOutput {
+            await getCalendarEvents(days: 7, calendar: "Work", requestId: 1)
+        }
+
+        guard let jsonData = output.data(using: .utf8),
+              let jsonObject = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let events = jsonObject["events"] as? [[String: Any]]
+        else {
+            XCTFail("JSON parsing failed. Output: \(output)")
+            return
+        }
+
+        XCTAssertEqual(events[0]["alarms_seconds"] as? [Int], [])
+    }
+
+    func testAlarmExtractionNegativeOffset() async {
+        mockStore.shouldGrantAccess = true
+        let calendar = EKCalendar(for: .event, eventStore: mockStore)
+        calendar.title = "Work"
+        mockStore.mockCalendars = [calendar]
+
+        let event = EKEvent(eventStore: mockStore)
+        event.title = "Meeting with alarm"
+        event.startDate = Date()
+        event.endDate = Date().addingTimeInterval(3600)
+        event.calendar = calendar
+
+        let alarm = EKAlarm()
+        alarm.relativeOffset = -900
+        event.alarms = [alarm]
+        mockStore.mockEvents = [event]
+
+        let output = await withCapturedOutput {
+            await getCalendarEvents(days: 7, calendar: "Work", requestId: 1)
+        }
+
+        guard let jsonData = output.data(using: .utf8),
+              let jsonObject = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let events = jsonObject["events"] as? [[String: Any]]
+        else {
+            XCTFail("JSON parsing failed. Output: \(output)")
+            return
+        }
+
+        XCTAssertEqual(events[0]["alarms_seconds"] as? [Int], [-900])
+    }
+
+    func testAlarmExtractionPositiveOffset() async {
+        mockStore.shouldGrantAccess = true
+        let calendar = EKCalendar(for: .event, eventStore: mockStore)
+        calendar.title = "Work"
+        mockStore.mockCalendars = [calendar]
+
+        let event = EKEvent(eventStore: mockStore)
+        event.title = "Follow-up"
+        event.startDate = Date()
+        event.endDate = Date().addingTimeInterval(3600)
+        event.calendar = calendar
+
+        let alarm = EKAlarm()
+        alarm.relativeOffset = 600
+        event.alarms = [alarm]
+        mockStore.mockEvents = [event]
+
+        let output = await withCapturedOutput {
+            await getCalendarEvents(days: 7, calendar: "Work", requestId: 1)
+        }
+
+        guard let jsonData = output.data(using: .utf8),
+              let jsonObject = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let events = jsonObject["events"] as? [[String: Any]]
+        else {
+            XCTFail("JSON parsing failed. Output: \(output)")
+            return
+        }
+
+        XCTAssertEqual(events[0]["alarms_seconds"] as? [Int], [600])
+    }
+
+    func testAlarmExtractionMultipleAlarmsSorted() async {
+        mockStore.shouldGrantAccess = true
+        let calendar = EKCalendar(for: .event, eventStore: mockStore)
+        calendar.title = "Work"
+        mockStore.mockCalendars = [calendar]
+
+        let event = EKEvent(eventStore: mockStore)
+        event.title = "Multiple alarms"
+        event.startDate = Date()
+        event.endDate = Date().addingTimeInterval(3600)
+        event.calendar = calendar
+
+        let alarm1 = EKAlarm()
+        alarm1.relativeOffset = 600
+        let alarm2 = EKAlarm()
+        alarm2.relativeOffset = -900
+        let alarm3 = EKAlarm()
+        alarm3.relativeOffset = -1800
+        event.alarms = [alarm1, alarm2, alarm3]
+        mockStore.mockEvents = [event]
+
+        let output = await withCapturedOutput {
+            await getCalendarEvents(days: 7, calendar: "Work", requestId: 1)
+        }
+
+        guard let jsonData = output.data(using: .utf8),
+              let jsonObject = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let events = jsonObject["events"] as? [[String: Any]]
+        else {
+            XCTFail("JSON parsing failed. Output: \(output)")
+            return
+        }
+
+        XCTAssertEqual(events[0]["alarms_seconds"] as? [Int], [-1800, -900, 600])
+    }
+
+    func testAlarmExtractionAbsoluteDate() async {
+        mockStore.shouldGrantAccess = true
+        let calendar = EKCalendar(for: .event, eventStore: mockStore)
+        calendar.title = "Work"
+        mockStore.mockCalendars = [calendar]
+
+        let startDate = Date()
+        let event = EKEvent(eventStore: mockStore)
+        event.title = "Absolute alarm"
+        event.startDate = startDate
+        event.endDate = startDate.addingTimeInterval(3600)
+        event.calendar = calendar
+
+        let alarm = EKAlarm()
+        alarm.absoluteDate = startDate.addingTimeInterval(-3600)
+        event.alarms = [alarm]
+        mockStore.mockEvents = [event]
+
+        let output = await withCapturedOutput {
+            await getCalendarEvents(days: 7, calendar: "Work", requestId: 1)
+        }
+
+        guard let jsonData = output.data(using: .utf8),
+              let jsonObject = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let events = jsonObject["events"] as? [[String: Any]]
+        else {
+            XCTFail("JSON parsing failed. Output: \(output)")
+            return
+        }
+
+        let alarmSeconds = events[0]["alarms_seconds"] as? [Int] ?? []
+        XCTAssertEqual(alarmSeconds.count, 1)
+        XCTAssertEqual(alarmSeconds[0], -3600)
+    }
+
+    // MARK: - alarmOffsetSeconds Unit Tests
+
+    func testAlarmOffsetSecondsNegativeRelativeOffset() {
+        let alarm = EKAlarm()
+        alarm.relativeOffset = -900
+        let result = alarmOffsetSeconds(alarm, eventStart: Date())
+        XCTAssertEqual(result, -900)
+    }
+
+    func testAlarmOffsetSecondsPositiveRelativeOffset() {
+        let alarm = EKAlarm()
+        alarm.relativeOffset = 600
+        let result = alarmOffsetSeconds(alarm, eventStart: Date())
+        XCTAssertEqual(result, 600)
+    }
+
+    func testAlarmOffsetSecondsZeroRelativeOffset() {
+        let alarm = EKAlarm()
+        alarm.relativeOffset = 0
+        let result = alarmOffsetSeconds(alarm, eventStart: Date())
+        XCTAssertEqual(result, 0)
+    }
+
+    func testAlarmOffsetSecondsAbsoluteDateBeforeStart() {
+        let start = Date()
+        let alarm = EKAlarm()
+        alarm.absoluteDate = start.addingTimeInterval(-3600)
+        let result = alarmOffsetSeconds(alarm, eventStart: start)
+        XCTAssertEqual(result, -3600)
+    }
+
+    func testAlarmOffsetSecondsAbsoluteDateAfterStart() {
+        let start = Date()
+        let alarm = EKAlarm()
+        alarm.absoluteDate = start.addingTimeInterval(1800)
+        let result = alarmOffsetSeconds(alarm, eventStart: start)
+        XCTAssertEqual(result, 1800)
+    }
+
+    func testAlarmOffsetSecondsAbsoluteDateTakesPrecedenceOverRelativeOffset() {
+        let start = Date()
+        let alarm = EKAlarm()
+        alarm.relativeOffset = -900
+        alarm.absoluteDate = start.addingTimeInterval(-7200)
+        let result = alarmOffsetSeconds(alarm, eventStart: start)
+        XCTAssertEqual(result, -7200)
+    }
+
     // MARK: - getSelectedCalendars Tests
 
     func testGetSelectedCalendarsAllCalendars() {

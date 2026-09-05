@@ -35,10 +35,12 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEventAlarmTest do
   end
 
   def upsert_event(apple_id, overrides) do
+    alarms = overrides[:alarms_seconds] || []
+
     CalendarEvent
     |> Ash.Changeset.new()
     |> Ash.Changeset.set_argument(:new_last_modified, overrides[:last_modified])
-    |> Ash.Changeset.set_argument(:new_alarms_seconds, overrides[:alarms_seconds])
+    |> Ash.Changeset.set_argument(:new_alarms_seconds, alarms)
     |> Ash.Changeset.for_create(:create_or_update, %{
       source: "apple",
       title: overrides[:title] || "Updated Event",
@@ -47,7 +49,7 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEventAlarmTest do
       last_modified: overrides[:last_modified],
       calendar_name: "Calendar",
       apple_event_id: apple_id,
-      alarms_seconds: overrides[:alarms_seconds]
+      alarms_seconds: alarms
     })
     |> Ash.create()
   end
@@ -66,6 +68,11 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEventAlarmTest do
     test "multiple alarms — stored as given (Swift pre-sorts)" do
       {:ok, event} = create_event(%{alarms_seconds: [-900, 0, 600]})
       assert event.alarms_seconds == [-900, 0, 600]
+    end
+
+    test "unsorted alarms — stored as given (sorting is Swift's job)" do
+      {:ok, event} = create_event(%{alarms_seconds: [600, -900, 0]})
+      assert event.alarms_seconds == [600, -900, 0]
     end
   end
 
@@ -107,6 +114,18 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEventAlarmTest do
       })
 
       assert {:error, %Ash.Error.Invalid{}} = result
+    end
+
+    test "missing alarms_seconds key defaults to [] (stale Swift binary)" do
+      {:ok, event} = create_event(%{alarms_seconds: [-900]})
+
+      {:ok, updated} = upsert_event(event.apple_event_id, %{
+        last_modified: event.last_modified,
+        alarms_seconds: nil
+      })
+
+      assert updated.id == event.id
+      assert updated.alarms_seconds == []
     end
   end
 

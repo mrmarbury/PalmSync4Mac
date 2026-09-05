@@ -59,11 +59,13 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorker do
     case PalmSync4Mac.EventKit.PortHandler.get_events(interval, calendar) do
       {:ok, data} ->
         Enum.each(data["events"], fn cal_date ->
+          alarm_seconds = cal_date["alarms_seconds"] || []
+
           try do
             PalmSync4Mac.Entity.EventKit.CalendarEvent
             |> Ash.Changeset.new()
             |> Ash.Changeset.set_argument(:new_last_modified, cal_date["last_modified"])
-            |> Ash.Changeset.set_argument(:new_alarms_seconds, cal_date["alarms_seconds"])
+            |> Ash.Changeset.set_argument(:new_alarms_seconds, alarm_seconds)
             |> Ash.Changeset.for_create(:create_or_update, cal_date)
             |> Ash.create!()
           rescue

@@ -168,10 +168,10 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
       constraints(remove_nil_items?: true)
 
       description(
-        "List of alarm seconds. Can be positive or negative values. Will be nil if no alarms"
+        "List of alarm seconds. Can be positive or negative values. Empty list if no alarms"
       )
 
-      allow_nil?(false)
+      allow_nil?(true)
       default([])
       public?(true)
     end
