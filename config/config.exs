@@ -21,6 +21,16 @@ config :palm_sync_4_mac,
   # Apple Calendar names to sync with Palm device.
   # CalendarEventWorker reads events from each calendar in the list via EventKit.
   # Must be a List of Strings
-  apple_calendar_names: ["Palm"]
+  apple_calendar_names: ["Palm"],
+  # can be either :first (alarm farthest from the event date) or :last (alarm closest to the event date)
+  # when syncing from Apple Calendar. This is because Palm can only have one alarm per appointment
+  # so we have to decide.
+  #
+  # Default is the value set below. Bogus alarm values (e.g. positive offsets that are after the events
+  # start date) will always be set to :default_alarm_seconds
+  pick_alarm: :last,
+  # fallback for bogus alarm intervals (e.g. positive offset)
+  # default: 10 minutes
+  default_alarm_seconds: 600
 
 import_config "#{config_env()}.exs"

@@ -57,12 +57,14 @@ Sometimes this might be needed to get new dependencies right:
 1. mix deps.get
 1. mix deps.compile
 
-### Fetch Apple Events and store them in the DB
+### Generate Migrations
 
-```elixir
-{:ok, data} = PalmSync4Mac.Entity.EventKit.CalendarHandler.get_events(0, "Calendar")
-Enum.each(data["events"], fn cal_date -> PalmSync4Mac.Entity.EventKit.CalendarEvent |> Ash.Changeset.for_create(:create_or_update, cal_date) |> Ash.create! end)
-```
+`mix ash_sqlite.generate_migrations`
+
+### Run the sync - for now, until there is a UI
+
+1. `iex -S mix`
+1. `PalmSync4Mac.Pilot.SyncTest.sync`
 
 ### Links
 
