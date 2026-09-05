@@ -28,8 +28,14 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEventAlarmTest do
 
     CalendarEvent
     |> Ash.Changeset.new()
-    |> Ash.Changeset.set_argument(:new_last_modified, Map.merge(defaults, overrides)[:last_modified])
-    |> Ash.Changeset.set_argument(:new_alarms_seconds, Map.merge(defaults, overrides)[:alarms_seconds])
+    |> Ash.Changeset.set_argument(
+      :new_last_modified,
+      Map.merge(defaults, overrides)[:last_modified]
+    )
+    |> Ash.Changeset.set_argument(
+      :new_alarms_seconds,
+      Map.merge(defaults, overrides)[:alarms_seconds]
+    )
     |> Ash.Changeset.for_create(:create_or_update, Map.merge(defaults, overrides))
     |> Ash.create()
   end
@@ -82,10 +88,12 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEventAlarmTest do
       old_modified = event.last_modified
 
       new_modified = DateTime.add(old_modified, 60, :second)
-      {:ok, updated} = upsert_event(event.apple_event_id, %{
-        last_modified: new_modified,
-        alarms_seconds: [-1800]
-      })
+
+      {:ok, updated} =
+        upsert_event(event.apple_event_id, %{
+          last_modified: new_modified,
+          alarms_seconds: [-1800]
+        })
 
       assert updated.id == event.id
       assert updated.alarms_seconds == [-1800]
@@ -96,10 +104,11 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEventAlarmTest do
       {:ok, event} = create_event(%{alarms_seconds: [-900]})
       old_modified = event.last_modified
 
-      {:ok, updated} = upsert_event(event.apple_event_id, %{
-        last_modified: old_modified,
-        alarms_seconds: [-1800]
-      })
+      {:ok, updated} =
+        upsert_event(event.apple_event_id, %{
+          last_modified: old_modified,
+          alarms_seconds: [-1800]
+        })
 
       assert updated.id == event.id
       assert updated.alarms_seconds == [-1800]
@@ -108,10 +117,11 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEventAlarmTest do
     test "no change at all (same last_modified + same alarms) — rejected as stale" do
       {:ok, event} = create_event(%{alarms_seconds: [-900]})
 
-      result = upsert_event(event.apple_event_id, %{
-        last_modified: event.last_modified,
-        alarms_seconds: [-900]
-      })
+      result =
+        upsert_event(event.apple_event_id, %{
+          last_modified: event.last_modified,
+          alarms_seconds: [-900]
+        })
 
       assert {:error, %Ash.Error.Invalid{}} = result
     end
@@ -119,10 +129,11 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEventAlarmTest do
     test "missing alarms_seconds key defaults to [] (stale Swift binary)" do
       {:ok, event} = create_event(%{alarms_seconds: [-900]})
 
-      {:ok, updated} = upsert_event(event.apple_event_id, %{
-        last_modified: event.last_modified,
-        alarms_seconds: nil
-      })
+      {:ok, updated} =
+        upsert_event(event.apple_event_id, %{
+          last_modified: event.last_modified,
+          alarms_seconds: nil
+        })
 
       assert updated.id == event.id
       assert updated.alarms_seconds == []
@@ -147,10 +158,11 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEventAlarmTest do
         if alarms_a != alarms_b do
           {:ok, event} = create_event(%{alarms_seconds: alarms_a})
 
-          {:ok, updated} = upsert_event(event.apple_event_id, %{
-            last_modified: event.last_modified,
-            alarms_seconds: alarms_b
-          })
+          {:ok, updated} =
+            upsert_event(event.apple_event_id, %{
+              last_modified: event.last_modified,
+              alarms_seconds: alarms_b
+            })
 
           assert updated.alarms_seconds == alarms_b
         end
