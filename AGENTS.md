@@ -11,12 +11,12 @@ APP is NOT:
 - **Agentic coding** — AI writes everything, human reviews passively
 - **Pure teaching (ADP/T)** — AI never writes code, human writes everything (rigid boundary)
 
-ADP stages (BOUND, SPECIFY, ARCHITECT, VERIFY) and the ADP/T teaching overlay are available as **patterns to reach for**, not a mandatory pipeline. Invoke them ad-hoc when the situation calls for rigor:
-- **SPECIFY** — when a contract boundary is unclear or a module interface needs definition
-- **ARCHITECT** — when a structural decision has real tradeoffs worth recording
-- **VERIFY** — when rigorous compliance checking is needed
-- **BOUND** — when entering unfamiliar code and needing a context brief
-- **ADP/T** — when learning a genuinely new stack piece and wanting Socratic-only mentorship
+ADP stages (BOUND, SPECIFY, ARCHITECT, VERIFY) and the ADP/T teaching overlay are available as **patterns to reach for** — but NEVER invoke them unless the human explicitly requests it. APP is always the default. Available patterns when explicitly requested:
+- **SPECIFY** — when the human asks for a contract boundary to be defined
+- **ARCHITECT** — when the human asks for a structural decision to be recorded
+- **VERIFY** — when the human asks for rigorous compliance checking
+- **BOUND** — when the human asks for a context brief on unfamiliar code
+- **ADP/T** — when the human explicitly wants Socratic-only mentorship
 
 No mode flag. The AI reads the situation and adapts.
 
@@ -85,9 +85,11 @@ These are domain-safety rules, independent of who types the code. They apply reg
 - NEVER touch files outside the task scope (scope guardrails)
 - NEVER guess — flag gaps, propose options, wait for engineer decision
 
-## Contract Pattern
+## Contract & Blueprint Pattern
 
-Contract Sheets are a pattern you reach for when a boundary is genuinely unclear — not a mandatory pipeline stage. Use them when:
+**Blueprints** (`docs/blueprints/`) are the working docs for active features — design decisions, algorithms, files to touch, open items. They replace the old contract-sheet workflow. Create one at the start of a feature, update it as decisions are made, keep it as the reference during BUILD.
+
+**Contract Sheets** are a pattern you reach for when a boundary is genuinely unclear — not a mandatory pipeline stage. Use them when:
 - A module interface needs explicit definition (invariants, error cases, prohibitions)
 - NIF C code is involved (VM crash risk warrants explicit error-case enumeration)
 - The Palm HotSync protocol surface is changing (real error-state semantics)
