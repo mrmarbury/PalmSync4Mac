@@ -39,7 +39,12 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
       change(set_attribute(:version, 0))
       change(atomic_update(:version, expr(version + 1)))
 
-      upsert_condition(expr(last_modified < ^arg(:new_last_modified)))
+      upsert_condition(
+        expr(
+          last_modified < ^arg(:new_last_modified) ||
+            alarms_seconds != ^arg(:new_alarms_seconds)
+        )
+      )
 
       error_handler(fn
         _changeset, %StaleRecord{} ->
@@ -64,7 +69,8 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
         :invitees,
         :calendar_name,
         :deleted,
-        :apple_event_id
+        :apple_event_id,
+        :alarms_seconds
       ])
     end
   end
@@ -158,8 +164,21 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
       public?(true)
     end
 
+    attribute :alarms_seconds, {:array, :integer} do
+      constraints(remove_nil_items?: true)
+
+      description(
+        "List of alarm seconds. Can be positive or negative values. Will be nil if no alarms"
+      )
+
+      allow_nil?(false)
+      default([])
+      public?(true)
+    end
+
     attribute :version, :integer do
       description("Version of the calendar event. Automatically incremented on each update")
+
       allow_nil?(false)
       public?(true)
       writable?(false)

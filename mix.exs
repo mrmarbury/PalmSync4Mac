@@ -41,6 +41,8 @@ defmodule PalmSync4Mac.MixProject do
       {:codepagex, "~> 0.1.13"},
       # dev & test
       {:patch, "~> 0.15", only: [:test]},
+      # ash wants it as prod dep so we can't restrict it to test only
+      {:stream_data, "~> 1.0"},
       {:mox, "~> 1.2", only: [:test], runtime: false},
       {:ex_doc, "~> 0.38", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},

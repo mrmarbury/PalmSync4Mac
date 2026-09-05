@@ -12,7 +12,7 @@ let logger = Logger(subsystem: "com.palmsync.EKCalendarInterface", category: "Po
 ///   - output: The file handle to write to. Defaults to `outputHandle` (stdout in production).
 func sendMessage(_ message: String, to output: FileHandle? = nil) {
     let target = output ?? outputHandle
-    guard let data = message.data(using: .utf8) else { return }
+guard let data = message.data(using: .utf8) else { return }
     var length = UInt32(data.count).bigEndian
     let lengthData = Data(bytes: &length, count: 4)
     let outputData = lengthData + data
@@ -103,6 +103,7 @@ func getCalendarEvents(days: Int, calendar: String?, requestId: Int?) async {
             "notes": event.notes ?? "",
             "apple_event_id": event.eventIdentifier ?? "",
             "last_modified": ISO8601DateFormatter().string(from: event.lastModifiedDate ?? Date()),
+            "alarms_seconds": event.alarms?.map { alarmOffsetSeconds($0, eventStart: event.startDate) } ?? [],
                 // we are not supporting attachments for now
         ]
     }
@@ -122,6 +123,16 @@ func getCalendarEvents(days: Int, calendar: String?, requestId: Int?) async {
         sendMessage(
             "{\"error\": \"json_serialization_failed\", \"request_id\": \(requestId ?? -1)}")
     }
+}
+
+/// extracts the alarm offset from an event
+/// relativeOffset is always set but if absoluteDate is set, then relativeOffset is 0
+/// so we have to check if absoluteDate is set first 
+func alarmOffsetSeconds(_ alarm: EKAlarm, eventStart: Date) -> Int {
+    if let absDate = alarm.absoluteDate {
+        return Int(absDate.timeIntervalSince(eventStart))
+    }
+    return Int(alarm.relativeOffset)
 }
 
 func getSelectedCalendars(named calendarName: String?, store: EKEventStore) -> [EKCalendar]? {
