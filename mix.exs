@@ -44,7 +44,8 @@ defmodule PalmSync4Mac.MixProject do
       {:mox, "~> 1.2", only: [:test], runtime: false},
       {:ex_doc, "~> 0.38", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:igniter, "~> 0.6", only: [:dev, :test]}
     ]
   end
 
