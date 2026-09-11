@@ -1,6 +1,6 @@
 ## Integration Check — Swift Test Sanitization & CI
 
-> **Pattern**: INTEGRATE
+> **ADP Stage**: INTEGRATE
 > **Date**: 2026-05-07
 > **Branch**: 20-swift-tests-ci
 > **GitHub**: mrmarbury/PalmSync4Mac#20

@@ -1,105 +1,33 @@
 # PalmSync4Mac Agent Rules
 
-Supersedes CLAUDE.md and INSTRUCTIONS.md (see git history for previous review-only rules). Augmented Pair Programming (APP) is the default development mode.
+Supersedes CLAUDE.md and INSTRUCTIONS.md (see git history for previous review-only rules). ADP-driven development mode.
 
 ## Development Mode
 
-**Default: Augmented Pair Programming (APP).** The AI is an XP pair programmer — the human drives by default, the AI is the navigator. Roles swap fluidly based on the task, not a mode flag. The human retains design authority; the AI amplifies exploration speed.
-
-APP is NOT:
-- **Vibe coding** — accept whatever AI generates, no quality standards
-- **Agentic coding** — AI writes everything, human reviews passively
-- **Pure teaching (ADP/T)** — AI never writes code, human writes everything (rigid boundary)
-
-ADP stages (BOUND, SPECIFY, ARCHITECT, VERIFY) and the ADP/T teaching overlay are available as **patterns to reach for**, not a mandatory pipeline. Invoke them ad-hoc when the situation calls for rigor:
-- **SPECIFY** — when a contract boundary is unclear or a module interface needs definition
-- **ARCHITECT** — when a structural decision has real tradeoffs worth recording
-- **VERIFY** — when rigorous compliance checking is needed
-- **BOUND** — when entering unfamiliar code and needing a context brief
-- **ADP/T** — when learning a genuinely new stack piece and wanting Socratic-only mentorship
-
-No mode flag. The AI reads the situation and adapts.
-
-## Per-Action Trust Spectrum
-
-Decide **per action**, not per session, using two properties — reversibility and blast radius. This replaces all "who writes code" rules.
-
-| Action type | Posture | Example |
-|---|---|---|
-| Reversible, small blast radius | **On the loop** — AI acts, human monitors | Generate test scaffolding, format code, write boilerplate |
-| Reversible, medium blast radius | **On the loop with review** — AI acts, human reviews diff | Implement a well-specified function, refactor a module |
-| Irreversible or wide blast radius | **In the loop** — AI prepares, human approves before execution | Architecture decisions, deleting code, changing public APIs, security-sensitive code, NIF C code that can crash the VM |
-
-The healthy path: start consequential actions in the loop, move to on the loop as trust is earned (both in the AI's reliability for this task and in the human's understanding of the codebase).
-
-### Build Flow — Functional First, Beautiful Second
-
-```
-Start writing code (functional, rough)
-  ├─ Hit something interesting → discuss with AI (architecture juggling)
-  ├─ Hit something unclear → AI flags the gap, human decides
-  ├─ Hit something boring → AI writes it, human reviews the diff
-  ├─ Hit something you're learning → AI hints (Socratic), human writes
-  ├─ Refactor toward beauty → AI reviews, suggests, flags
-  └─ Hit something that needs a contract → pause, spec it (SPECIFY pattern), continue
-```
-
-The default state is BUILD. Everything else interrupts it when needed. There is no mandatory stage sequence. Architecture emerges through building — you discover the design by engaging with the problem, not by specifying it upfront.
-
-## Continuous Copilot Behaviors
-
-These run throughout, not as stages:
-
-| Behavior | When | Example |
-|---|---|---|
-| **Gap flagging** | After the human has a working implementation | "Did you consider what happens if the port crashes mid-response?" |
-| **Encouragement** | After the human writes something good | "The handle_continue pattern here is exactly right — clean." |
-| **Idea juggling** | Design discussions | "What if we used a Task instead of a GenServer here? Tradeoff would be..." |
-| **Boring task pickup** | When the human is doing mechanical work | "I can generate the test scaffolding for this if you want." |
-| **Socratic hints** | When the human is learning | "Think about what state you need to track between sending and receiving." |
-| **Diff review** | After the AI writes code | Human reads it, understands it, can reject it. Not expected to re-derive from scratch. |
-| **Steelmanning the human** | When the human is uncertain | "Actually, your instinct here is right. Here's why..." |
-| **Shutting up** | When the human is in flow | Don't interrupt with suggestions when the human is typing confidently. |
-
-Proactively surface the "invisible 20%" — error handling, NIF safety, resource cleanup, concurrency, encoding, observability. Do this AFTER the human has a working implementation, not before. Let them write the happy path first, then grill them on what's missing.
-
-## Architecture Co-Development
-
-Architecture is co-developed through dialogue, not handed off:
-
-1. Human sketches intent → AI interrogates it (grill-me inverted)
-2. AI proposes options → human critiques → AI revises
-3. Converge on decision → AI writes Architecture Decision
-4. **"Explain It Back" gate**: human explains the architecture in their own words without AI assistance. If they can't, the collaboration produced understanding debt, not architecture.
-5. **"Steelman Test" gate**: AI argues against the chosen architecture as strongly as possible. Human must defend it.
-
-Every architectural decision records decision provenance: who proposed it, alternatives rejected, and the human's own defense of why it's right.
+Full ADP (Agentic Development Protocol) — the original 6-stage pipeline. AI is executor in BUILD.
 
 ## Hard Constraints
 
-These are domain-safety rules, independent of who types the code. They apply regardless of trust posture.
-
+- NEVER introduce behavior not specified in the active Contract Sheet
+- NEVER skip the stop-and-escalate rule when encountering a contract gap
+- NEVER guess — flag gaps, propose options, wait for engineer decision
+- NEVER touch files outside the task scope (scope guardrails)
 - ALWAYS run `mix format && mix credo --strict && mix compile && mix test` before reporting done
+- ALWAYS trace tests to contract items: `# Contract: <module> — <invariant/error/IO>`
 - ALWAYS use `{:ok, result}` / `{:error, reason}` tuples (never raise on expected errors)
 - ALWAYS clean up resources: sockets, DB handles, pi_buffer, malloc'd strings
-- NEVER touch files outside the task scope (scope guardrails)
-- NEVER guess — flag gaps, propose options, wait for engineer decision
 
-## Contract Pattern
+## ADP Stage Awareness
 
-Contract Sheets are a pattern you reach for when a boundary is genuinely unclear — not a mandatory pipeline stage. Use them when:
-- A module interface needs explicit definition (invariants, error cases, prohibitions)
-- NIF C code is involved (VM crash risk warrants explicit error-case enumeration)
-- The Palm HotSync protocol surface is changing (real error-state semantics)
-- Encoding boundaries shift (ISO-8859-1 bugs are silent and nasty)
+Current stage and AI role (set per session):
+- BOUND → Consultant (surfaces context, doesn't decide scope)
+- SPECIFY → Consultant (probes gaps, doesn't write contracts)
+- ARCHITECT → Consultant (proposes options, doesn't select)
+- BUILD → Executor (implements contracts, writes code)
+- VERIFY → Reviewer (runs compliance check, generates report)
+- INTEGRATE → Reviewer (runs suite, reports results)
 
-When a contract exists:
-- Tests trace to contract items: `# Contract: <module> — <invariant/error/IO>`
-- No speculative code — implement exactly what the contract specifies
-- Stop-and-escalate on contract gaps (absolute)
-- Red-Green-Refactor isolation for critical contracts
-
-When no contract exists: BUILD freely, reach for a contract only when the code demands one.
+Contract Sheet is the single source of truth. Code follows contracts.
 
 ## Build/Test/Lint Commands
 
@@ -113,6 +41,14 @@ When no contract exists: BUILD freely, reach for a contract only when the code d
 - `mix ash_sqlite.migrate` — Run migrations
 - `mix ash_sqlite.generate_migrations` — Generate migrations from Ash resources
 - `pushd ports && swift build -c release ; popd` — Build Swift EventKit port
+
+## Contract-Driven Development Rules
+
+- Tests first, traced to contracts
+- No speculative code — implement exactly what the contract specifies
+- Stop-and-escalate on contract gaps (absolute)
+- One contract at a time for complex features
+- Red-Green-Refactor isolation for critical contracts
 
 ## 4-Layer Guardrail Stack
 
@@ -149,7 +85,6 @@ These skills MUST be loaded for ANY task in this repo. They encode domain-specif
 
 | Skill | Why It's Required |
 |---|---|
-| `augmented-pair-programming` | Default development mode — fluid role swap, trust spectrum, copilot behaviors |
 | `elixir` | Core language — all application code is Elixir |
 | `ash` | Ash framework is the data layer — resource definitions, actions, identities, relationships, SQLite migrations |
 | `phoenix` | Phoenix LiveView readiness constraint — code structure must support future UI integration |
@@ -159,32 +94,71 @@ These skills MUST be loaded for ANY task in this repo. They encode domain-specif
 | `elixir-testing` | ExUnit with Patch library for NIF mocking, Mox for external deps — test patterns are non-obvious |
 | `c-nifs-ports` | pidlp NIF bridge (Unifex/Bundlex), Erlang port for Swift — NIF safety and type mappings are critical |
 | `swift` | Swift EventKit port at `ports/` — builds with `pushd ports && swift build -c release ; popd` |
-| `agentic-development-protocol` | Optional strict-pipeline patterns (SPECIFY/ARCHITECT/VERIFY) — load when a contract cycle is invoked |
 
-**Enforcement**: Any `task()` delegation that touches Elixir, Ash, NIF, or Swift code MUST include all relevant skills in `load_skills`. When in doubt, include all of them. Load `agentic-development-protocol` only when explicitly running a contract cycle.
+**Enforcement**: Any `task()` delegation that touches Elixir, Ash, NIF, or Swift code MUST include all relevant skills in `load_skills`. When in doubt, include all of them.
 
 ## Rocco Integration
 
 Rocco (Hermes Agent on Discord) is the project memory and vault interface. The vault lives on openclaw (FreeBSD) at `/home/hermes/vault/`. Rocco is the sole interface — do NOT try to read vault files locally.
 
-Queries are event-based, not pipeline-stage-based. Fire them when the situation calls for context, learnings, or writeback:
-
-**Before starting a feature** (replaces "Before BOUND"):
+**Before BOUND stage (every ADP cycle):**
 - Ask Rocco via Discord: `[palm_sync_4_mac] context for <feature>`
-- Rocco delivers: project Transition status, relevant Decisions, LEARNINGS.md, wiki patterns
+- Rocco delivers: ADP Transition status, relevant Decisions, LEARNINGS.md, wiki patterns
 
-**Before writing a contract/spec** (replaces "Before SPECIFY"):
+**Before SPECIFY stage:**
 - Ask Rocco via Discord: `[palm_sync_4_mac] learnings and pitfalls for <module>`
 - Rocco delivers: project-specific pitfalls, patterns, and common mistakes from LEARNINGS.md
-- These feed the "Common pitfalls" section of contracts
+- These feed the "Common pitfalls" section of contract sheets
 
-**After completing work** (replaces "After VERIFY/INTEGRATE"):
+**After VERIFY/INTEGRATE (cycle complete):**
 - Send writeback to Rocco via Discord: `[palm_sync_4_mac] WRITEBACK — <summary>`
 - Include: what was done, key decisions, learnings, test results, open questions
-- Rocco ingests: updates LEARNINGS.md, Decisions.md, Transition.md, wiki pages
+- Rocco ingests: updates LEARNINGS.md, Decisions.md, ADP Transition.md, wiki pages
 
 **How to talk to Rocco:**
 - Use the `tell-rocco` skill (loaded automatically)
 - @mention Rocco in `#general` to start a new thread
 - Follow-ups go in the auto-created thread (same ID as the first message)
 - Use `--file` for writebacks (avoids 2000 char limit)
+
+<!-- graft:start -->
+## Graft — repo context graph
+
+This repo is indexed in `graft/`: small linked markdown nodes that explain each
+system and carry exact file:line spans, kept in sync with the code through git.
+
+For ANY task here — understanding how something works, finding where code lives,
+or scoping a change — get context from the graph before grepping or opening
+source files. Re-ask freely (it's cheap) and reuse literal identifiers you
+already have (symbol, error string, file name) as the query. New to this repo?
+Run `graft map` first — a token-budgeted orientation (dir clusters, hubs,
+hotspots), no LLM, no key.
+
+- Run `graft ask "<your question>" --source` → ranked nodes with the relevant
+  code spans inlined (each hit's ≤8-line crux by default; `--full` for whole
+  definitions when the crux isn't enough). Match the tool to the task shape:
+  for understanding or editing, the top node IS the answer — cite its
+  `covers:` file:line spans and edit straight from `--source`. For
+  exhaustive tasks ("every occurrence / every caller of this pattern"), ranked
+  results are top-N, not complete — run `graft grep "<literal>"` instead
+  (exhaustive over indexed files, grouped by enclosing symbol), falling back
+  to raw `grep -rn` only for unindexed files.
+- `graft skeleton <file>` → every definition's signature + span, ~10× cheaper
+  than reading the file; use it to skim an API surface.
+- `graft callers <symbol>` gives precomputed, exact edges — who calls this.
+  Add `--direction out` for what it calls, or `--depth N` to walk
+  transitively for the full blast radius. For structural questions, skip
+  ranking and use this directly.
+- Or browse: `graft/INDEX.md` lists every node; follow the links.
+- Monorepos and folders of multiple repos rank fairly across sub-projects —
+  hits carry `[scope/]` labels naming which one they're from. Narrow with
+  `graft ask "<task>" --in <scope>/` once you know where you're working.
+
+If a returned span is truncated ("+N more lines"), open the file at that exact
+range before finalizing. Only open source files when a node genuinely lacks a
+needed detail, and then at the exact file:line the node points to — never
+re-read whole files.
+
+After big code changes, refresh the graph with `graft build` (deterministic,
+no API key, $0).
+<!-- graft:end -->

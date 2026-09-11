@@ -1,6 +1,6 @@
 # Backlog — Multi-Device Sync (Deferred Items)
 
-> **Pattern**: BUILD → deferred
+> **ADP Stage**: BUILD → deferred
 > **Date**: 2026-04-21
 > **Status**: Documented, not implemented
 
