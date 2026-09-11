@@ -4,10 +4,7 @@ Supersedes CLAUDE.md and INSTRUCTIONS.md (see git history for previous review-on
 
 ## Development Mode
 
-`ADP_MODE: teaching` (default for this repo — switch to `execution` per-session if speed is needed)
-
-- `teaching` → ADP/T: AI is Socratic mentor in BUILD. User writes all code. AI hints, grills, scaffolds, reviews.
-- `execution` → ADP: AI is executor in BUILD. Original protocol.
+Full ADP (Agentic Development Protocol) — the original 6-stage pipeline. AI is executor in BUILD.
 
 ## Hard Constraints
 
@@ -20,50 +17,17 @@ Supersedes CLAUDE.md and INSTRUCTIONS.md (see git history for previous review-on
 - ALWAYS use `{:ok, result}` / `{:error, reason}` tuples (never raise on expected errors)
 - ALWAYS clean up resources: sockets, DB handles, pi_buffer, malloc'd strings
 
-### Teaching Mode Constraints (when ADP_MODE=teaching)
-
-- NEVER write implementation code the user should write — give hints, not answers
-- ALWAYS explain *why*, not just *what*
-- ALWAYS start hints at level 1 (conceptual), escalate only when user asks or struggles
-- ALWAYS proactively surface the invisible 20% (error handling, NIF safety, resource cleanup, observability)
-- NEVER give the answer outright — use Socratic questioning first
-- NEVER write code in BUILD stage — only in VERIFY (review fixes) or if user explicitly asks "show me"
-
 ## ADP Stage Awareness
 
 Current stage and AI role (set per session):
 - BOUND → Consultant (surfaces context, doesn't decide scope)
 - SPECIFY → Consultant (probes gaps, doesn't write contracts)
 - ARCHITECT → Consultant (proposes options, doesn't select)
-- BUILD → Mentor (teaching mode) or Executor (execution mode)
-- VERIFY → Reviewer (runs compliance check, generates report + learning assessment in teaching mode)
+- BUILD → Executor (implements contracts, writes code)
+- VERIFY → Reviewer (runs compliance check, generates report)
 - INTEGRATE → Reviewer (runs suite, reports results)
 
 Contract Sheet is the single source of truth. Code follows contracts.
-
-### BUILD in Teaching Mode (ADP/T)
-
-The AI is a Socratic mentor, not an executor. The user writes all code.
-
-**Hint Ladder** — start at level 1, escalate only when user asks or is stuck:
-
-| Level | What the AI gives | When to use |
-|---|---|---|
-| 1 | Conceptual hint: "Think about how OTP supervision trees work here" | Default starting point |
-| 2 | Pattern pointer: "Look at how SysInfoWorker handles this in sys_info_worker.ex" | User asks or struggles |
-| 3 | Skeleton: "Here are the function signatures you need, fill in the bodies" | User stuck for >2 attempts |
-| 4 | Pair programming: walk through the solution together | User explicitly asks "show me" |
-
-**Teaching Contract Extensions** (added to Contract Sheet in SPECIFY):
-- Concepts to learn — what Elixir/OTP/NIF/Swift patterns this contract teaches
-- Common pitfalls — mistakes a learner will likely make (sourced from LEARNINGS.md via Rocco)
-- Hint ladder — progressive hints from "think about X" → "look at pattern Y" → skeleton
-- Self-check questions — the user answers before declaring BUILD done
-
-**VERIFY in Teaching Mode** includes a learning assessment:
-- What the user understood well
-- What concepts need reinforcement
-- Recommended reading from Rocco's vault
 
 ## Build/Test/Lint Commands
 
@@ -130,9 +94,8 @@ These skills MUST be loaded for ANY task in this repo. They encode domain-specif
 | `elixir-testing` | ExUnit with Patch library for NIF mocking, Mox for external deps — test patterns are non-obvious |
 | `c-nifs-ports` | pidlp NIF bridge (Unifex/Bundlex), Erlang port for Swift — NIF safety and type mappings are critical |
 | `swift` | Swift EventKit port at `ports/` — builds with `pushd ports && swift build -c release ; popd` |
-| `adp-teaching-mode` | Teaching overlay for ADP — hint ladder, Socratic patterns, learning assessment. Required when ADP_MODE=teaching |
 
-**Enforcement**: Any `task()` delegation that touches Elixir, Ash, NIF, or Swift code MUST include all relevant skills in `load_skills`. When in doubt, include all of them. When `ADP_MODE=teaching`, always include `adp-teaching-mode`.
+**Enforcement**: Any `task()` delegation that touches Elixir, Ash, NIF, or Swift code MUST include all relevant skills in `load_skills`. When in doubt, include all of them.
 
 ## Rocco Integration
 
@@ -145,7 +108,7 @@ Rocco (Hermes Agent on Discord) is the project memory and vault interface. The v
 **Before SPECIFY stage:**
 - Ask Rocco via Discord: `[palm_sync_4_mac] learnings and pitfalls for <module>`
 - Rocco delivers: project-specific pitfalls, patterns, and common mistakes from LEARNINGS.md
-- These feed the "Common pitfalls" section of teaching contracts
+- These feed the "Common pitfalls" section of contract sheets
 
 **After VERIFY/INTEGRATE (cycle complete):**
 - Send writeback to Rocco via Discord: `[palm_sync_4_mac] WRITEBACK — <summary>`
@@ -157,3 +120,45 @@ Rocco (Hermes Agent on Discord) is the project memory and vault interface. The v
 - @mention Rocco in `#general` to start a new thread
 - Follow-ups go in the auto-created thread (same ID as the first message)
 - Use `--file` for writebacks (avoids 2000 char limit)
+
+<!-- graft:start -->
+## Graft — repo context graph
+
+This repo is indexed in `graft/`: small linked markdown nodes that explain each
+system and carry exact file:line spans, kept in sync with the code through git.
+
+For ANY task here — understanding how something works, finding where code lives,
+or scoping a change — get context from the graph before grepping or opening
+source files. Re-ask freely (it's cheap) and reuse literal identifiers you
+already have (symbol, error string, file name) as the query. New to this repo?
+Run `graft map` first — a token-budgeted orientation (dir clusters, hubs,
+hotspots), no LLM, no key.
+
+- Run `graft ask "<your question>" --source` → ranked nodes with the relevant
+  code spans inlined (each hit's ≤8-line crux by default; `--full` for whole
+  definitions when the crux isn't enough). Match the tool to the task shape:
+  for understanding or editing, the top node IS the answer — cite its
+  `covers:` file:line spans and edit straight from `--source`. For
+  exhaustive tasks ("every occurrence / every caller of this pattern"), ranked
+  results are top-N, not complete — run `graft grep "<literal>"` instead
+  (exhaustive over indexed files, grouped by enclosing symbol), falling back
+  to raw `grep -rn` only for unindexed files.
+- `graft skeleton <file>` → every definition's signature + span, ~10× cheaper
+  than reading the file; use it to skim an API surface.
+- `graft callers <symbol>` gives precomputed, exact edges — who calls this.
+  Add `--direction out` for what it calls, or `--depth N` to walk
+  transitively for the full blast radius. For structural questions, skip
+  ranking and use this directly.
+- Or browse: `graft/INDEX.md` lists every node; follow the links.
+- Monorepos and folders of multiple repos rank fairly across sub-projects —
+  hits carry `[scope/]` labels naming which one they're from. Narrow with
+  `graft ask "<task>" --in <scope>/` once you know where you're working.
+
+If a returned span is truncated ("+N more lines"), open the file at that exact
+range before finalizing. Only open source files when a node genuinely lacks a
+needed detail, and then at the exact file:line the node points to — never
+re-read whole files.
+
+After big code changes, refresh the graph with `graft build` (deterministic,
+no API key, $0).
+<!-- graft:end -->
