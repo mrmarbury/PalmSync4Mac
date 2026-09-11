@@ -1,6 +1,6 @@
 ## Verification Report — Swift Test Sanitization & CI
 
-> **Pattern**: VERIFY
+> **ADP Stage**: VERIFY
 > **Date**: 2026-05-07
 > **Contracts**: docs/contracts/swift-ci-tests/contract.md
 > **GitHub**: mrmarbury/PalmSync4Mac#20
