@@ -53,3 +53,6 @@ c_src/build/
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# local dev secrets (graft LLM endpoint key etc.) — see README "Agent Tooling"
+.env

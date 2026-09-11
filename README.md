@@ -47,6 +47,31 @@ This is caused by `mix deps.update` or pulling code that updated `mix.lock` with
 
 - `:swift_port_binary` - Override default Swift Calendar Event port binary. Default `./ports/.build/release/ek_calendar_interface`
 
+### Agent Tooling (graft context graph)
+
+This repo is indexed by [graft](https://npmjs.com/package/graft): a context graph of every symbol and its callers, stored in `graft/` (git-ignored — run `graft build` to regenerate; deterministic, no API key, $0).
+
+The optional LLM pass (`graft build --deep` — concept nodes + per-symbol summaries) talks to any OpenAI-compatible endpoint, configured via a `.env` file in the repo root (git-ignored):
+
+```
+GRAFT_PROVIDER=openai
+GRAFT_BASE_URL=http://localhost:11434/v1
+GRAFT_MODEL=qwen2.5-coder:32b
+GRAFT_API_KEY=<any non-empty value for local endpoints>
+```
+
+The setup above uses a local [Ollama](https://ollama.com) server:
+
+```bash
+brew install ollama
+ollama pull qwen2.5-coder:32b
+ollama serve   # OpenAI-compatible API at http://localhost:11434/v1
+```
+
+`GRAFT_PROVIDER` selects the wire format: `openai` | `anthropic` | `litellm` | `orcarouter`. No embedding models are needed — graft's deep pass is summarization-only.
+
+Other tooling (no configuration required): the hexdocs MCP server (`.opencode/opencode.jsonc`, fetched on demand via npx) and the igniter dev/test dependency.
+
 ## Dev Notes
 
 ### Getting New Compilable Dependencies
