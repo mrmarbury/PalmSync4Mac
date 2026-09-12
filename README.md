@@ -72,6 +72,28 @@ ollama serve   # OpenAI-compatible API at http://localhost:11434/v1
 
 Other tooling (no configuration required): the hexdocs MCP server (`.opencode/opencode.jsonc`, fetched on demand via npx) and the igniter dev/test dependency.
 
+## Known Limitations
+
+### Alarm Rounding (Palm Wire Format)
+
+The Palm stores an appointment alarm as **one byte of advance + one byte of
+unit** — at most 255 minutes (~4¼ h), 255 hours (~10½ days), or 255 days
+(~8 months) before the event. Apple Calendar allows arbitrary alarm offsets,
+so not every value survives the trip to the device:
+
+- Cleanly divisible offsets (whole minutes up to 255, whole hours, whole days)
+  are stored exactly, in the largest unit that fits.
+- Odd values round **up** to the next whole minute below 4¼ h (e.g. a
+  90-second alarm becomes 2 min), to the next whole hour beyond that (e.g. a
+  270-minute alarm becomes 5 h), and to the next whole day beyond 10½ days.
+- Alarms more than 255 days out are capped at 255 days — the only case that
+  alarms *later* than requested.
+
+Rounding up is deliberate: an alarm that fires a little too early can be
+snoozed; one that fires too late is simply missed. Alarms with a positive
+offset (after event start) are discarded at ingestion; if an event had only
+such alarms, a default 10-minute alarm (`:default_alarm_seconds`) is stored.
+
 ## Dev Notes
 
 ### Getting New Compilable Dependencies

@@ -9,6 +9,7 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointment do
   alias PalmSync4Mac.Comms.Pidlp.RepeatType
   alias PalmSync4Mac.Comms.Pidlp.TM
   alias PalmSync4Mac.Entity.EventKit.CalendarEvent
+  alias PalmSync4Mac.Utils.AlarmPicker
   alias PalmSync4Mac.Utils.TMTime
 
   typedstruct do
@@ -111,6 +112,10 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointment do
   @spec from_calendar_event(CalendarEvent.t(), non_neg_integer()) ::
           {CalendarEvent.t(), DatebookAppointment.t()}
   def from_calendar_event(%CalendarEvent{} = event, rec_id \\ 0) do
+    pick = Application.fetch_env!(:palm_sync_4_mac, :pick_alarm)
+
+    {alarm, advance, unit} = AlarmPicker.to_palm_alarm(event.alarms_seconds, pick: pick)
+
     {event,
      %__MODULE__{
        description: event.title |> to_palm_encoding(),
@@ -119,9 +124,17 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointment do
        note: event |> build_note() |> to_palm_encoding(),
        location: (event.location || "") |> to_palm_encoding(),
        event: event.start_date == event.end_date,
+       alarm: alarm,
+       alarm_advance: advance,
+       alarm_advance_units: unit_to_advance_value(unit),
        rec_id: rec_id
      }}
   end
+
+  @spec unit_to_advance_value(AlarmPicker.unit()) :: 0 | 1 | 2
+  defp unit_to_advance_value(:minutes), do: AlarmAdvanceUnit.Minutes.value()
+  defp unit_to_advance_value(:hours), do: AlarmAdvanceUnit.Hours.value()
+  defp unit_to_advance_value(:days), do: AlarmAdvanceUnit.Days.value()
 
   defp build_note(%CalendarEvent{} = event) do
     [

@@ -6,6 +6,8 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorker do
 
   require Logger
 
+  alias PalmSync4Mac.Utils.AlarmPicker
+
   # defaults
   @calendars []
   @interval 13
@@ -56,17 +58,24 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorker do
   ### Business Logic
 
   defp sync_calendar(calendar, interval) do
+    default = Application.fetch_env!(:palm_sync_4_mac, :default_alarm_seconds)
+
     case PalmSync4Mac.EventKit.PortHandler.get_events(interval, calendar) do
       {:ok, data} ->
         Enum.each(data["events"], fn cal_date ->
-          alarm_seconds = cal_date["alarms_seconds"] || []
+          raw = cal_date["alarms_seconds"] || []
+          cleaned = AlarmPicker.clean(raw, default: default)
+          log_alarm_cleaning(cal_date["apple_event_id"], raw)
 
           try do
             PalmSync4Mac.Entity.EventKit.CalendarEvent
             |> Ash.Changeset.new()
             |> Ash.Changeset.set_argument(:new_last_modified, cal_date["last_modified"])
-            |> Ash.Changeset.set_argument(:new_alarms_seconds, alarm_seconds)
-            |> Ash.Changeset.for_create(:create_or_update, cal_date)
+            |> Ash.Changeset.set_argument(:new_alarms_seconds, cleaned)
+            |> Ash.Changeset.for_create(
+              :create_or_update,
+              Map.put(cal_date, "alarms_seconds", cleaned)
+            )
             |> Ash.create!()
           rescue
             # upserts throw when the resource is stale. Which in this case means that nothing has
@@ -78,6 +87,24 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorker do
 
       {:error, reason} ->
         Logger.error("Error syncing calendar events: #{inspect(reason)}")
+    end
+  end
+
+  # Cleaning events (discards, default substitution) log at :debug level only —
+  # see docs/contracts/ek-alarms-to-palm/contract.md, Contract 1.
+  defp log_alarm_cleaning(apple_event_id, raw_alarms) do
+    positive_count = Enum.count(raw_alarms, &(&1 > 0))
+
+    if positive_count > 0 do
+      Logger.debug(
+        "Discarded #{positive_count} positive alarm offset(s) for event #{inspect(apple_event_id)}"
+      )
+    end
+
+    if raw_alarms != [] and Enum.all?(raw_alarms, &(&1 > 0)) do
+      Logger.debug(
+        "All alarm offsets positive for event #{inspect(apple_event_id)}, substituted default alarm"
+      )
     end
   end
 end

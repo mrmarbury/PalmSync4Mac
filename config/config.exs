@@ -26,10 +26,11 @@ config :palm_sync_4_mac,
   # when syncing from Apple Calendar. This is because Palm can only have one alarm per appointment
   # so we have to decide.
   #
-  # Default is the value set below. Bogus alarm values (e.g. positive offsets that are after the events
-  # start date) will always be set to :default_alarm_seconds
+  # Default is the value set below. Alarms with positive offsets (after the event's
+  # start date) are discarded at ingestion; :default_alarm_seconds is substituted
+  # only when an event had alarms but ALL of them were positive.
   pick_alarm: :last,
-  # fallback for bogus alarm intervals (e.g. positive offset)
+  # fallback (in seconds) when an event had alarms but all were discarded as positive
   # default: 10 minutes
   default_alarm_seconds: 600
 
