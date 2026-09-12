@@ -352,7 +352,11 @@ final class CalendarEventsTests: XCTestCase {
     }
 
     func testAlarmOffsetSecondsAbsoluteDateBeforeStart() {
-        let start = Date()
+        // Fixed whole-second date: Date() carries a sub-second fraction, and
+        // EKAlarm.absoluteDate round-trips through EventKit at whole-second
+        // precision — with a live Date() the expected offset lands ±0.5s away
+        // from the rounding boundary and the test flakes ~50% of runs.
+        let start = Date(timeIntervalSinceReferenceDate: 700_000_000)
         let alarm = EKAlarm()
         alarm.absoluteDate = start.addingTimeInterval(-3600)
         let result = alarmOffsetSeconds(alarm, eventStart: start)
@@ -360,7 +364,7 @@ final class CalendarEventsTests: XCTestCase {
     }
 
     func testAlarmOffsetSecondsAbsoluteDateAfterStart() {
-        let start = Date()
+        let start = Date(timeIntervalSinceReferenceDate: 700_000_000)
         let alarm = EKAlarm()
         alarm.absoluteDate = start.addingTimeInterval(1800)
         let result = alarmOffsetSeconds(alarm, eventStart: start)
@@ -368,7 +372,7 @@ final class CalendarEventsTests: XCTestCase {
     }
 
     func testAlarmOffsetSecondsAbsoluteDateTakesPrecedenceOverRelativeOffset() {
-        let start = Date()
+        let start = Date(timeIntervalSinceReferenceDate: 700_000_000)
         let alarm = EKAlarm()
         alarm.relativeOffset = -900
         alarm.absoluteDate = start.addingTimeInterval(-7200)
