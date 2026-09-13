@@ -103,6 +103,7 @@ func getCalendarEvents(days: Int, calendar: String?, requestId: Int?) async {
             "notes": event.notes ?? "",
             "apple_event_id": event.eventIdentifier ?? "",
             "last_modified": ISO8601DateFormatter().string(from: event.lastModifiedDate ?? Date()),
+            "alarms_seconds": (event.alarms?.map { alarmOffsetSeconds($0, eventStart: event.startDate) })?.sorted() ?? [],
                 // we are not supporting attachments for now
         ]
     }
@@ -122,6 +123,16 @@ func getCalendarEvents(days: Int, calendar: String?, requestId: Int?) async {
         sendMessage(
             "{\"error\": \"json_serialization_failed\", \"request_id\": \(requestId ?? -1)}")
     }
+}
+
+/// extracts the alarm offset from an event
+/// relativeOffset is always set but if absoluteDate is set, then relativeOffset is meaningless
+/// so we have to check if absoluteDate is set first
+func alarmOffsetSeconds(_ alarm: EKAlarm, eventStart: Date) -> Int {
+    if let absDate = alarm.absoluteDate {
+        return Int(absDate.timeIntervalSince(eventStart).rounded())
+    }
+    return Int(alarm.relativeOffset.rounded())
 }
 
 func getSelectedCalendars(named calendarName: String?, store: EKEventStore) -> [EKCalendar]? {
