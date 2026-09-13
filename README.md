@@ -86,6 +86,9 @@ so not every value survives the trip to the device:
 - Odd values round **up** to the next whole minute below 4¼ h (e.g. a
   90-second alarm becomes 2 min), to the next whole hour beyond that (e.g. a
   270-minute alarm becomes 5 h), and to the next whole day beyond 10½ days.
+- Values that round up onto an exact whole hour or day are stored in the
+  larger unit (a 59-minute-59-second lead is stored as "1 hour", not
+  "60 minutes" — same instant, coarser unit).
 - Alarms more than 255 days out are capped at 255 days — the only case that
   alarms *later* than requested.
 

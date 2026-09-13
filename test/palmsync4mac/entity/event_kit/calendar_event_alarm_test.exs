@@ -7,10 +7,12 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEventAlarmTest do
   use ExUnit.Case, async: false
   use ExUnitProperties
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias PalmSync4Mac.Entity.EventKit.CalendarEvent
+  alias PalmSync4Mac.Repo
 
   setup do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(PalmSync4Mac.Repo)
+    :ok = Sandbox.checkout(Repo)
     :ok
   end
 
@@ -142,7 +144,7 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEventAlarmTest do
 
   describe "property tests" do
     property "upsert stores any integer list as given" do
-      check all(alarms <- list_of(integer(-86400..0))) do
+      check all(alarms <- list_of(integer(-86_400..0))) do
         {:ok, event} = create_event(%{alarms_seconds: alarms})
         assert event.alarms_seconds == alarms
       end
@@ -150,8 +152,8 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEventAlarmTest do
 
     property "different alarms trigger update even with same last_modified" do
       check all(
-              alarms_a <- list_of(integer(-86400..0), min_length: 1, max_length: 5),
-              alarms_b <- list_of(integer(-86400..0), min_length: 1, max_length: 5),
+              alarms_a <- list_of(integer(-86_400..0), min_length: 1, max_length: 5),
+              alarms_b <- list_of(integer(-86_400..0), min_length: 1, max_length: 5),
               max_runs: 50
             ) do
         # Skip if lists happen to be equal

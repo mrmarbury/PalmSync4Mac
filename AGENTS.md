@@ -13,7 +13,7 @@ Full ADP (Agentic Development Protocol) — the original 6-stage pipeline. AI is
 - NEVER guess — flag gaps, propose options, wait for engineer decision
 - NEVER touch files outside the task scope (scope guardrails)
 - ALWAYS run `mix format && mix credo --strict && mix compile && mix test` before reporting done
-- ALWAYS trace tests to contract items: `# Contract: <module> — <invariant/error/IO>`
+- ALWAYS write comments as standalone human-readable prose that a developer understands 1 year later with ALL data needed (why, constraints, context) — NEVER mechanical trace tags like `# Contract: <module> — <clause>`; traceability lives in docs/contracts/, not in code comments
 - ALWAYS use `{:ok, result}` / `{:error, reason}` tuples (never raise on expected errors)
 - ALWAYS clean up resources: sockets, DB handles, pi_buffer, malloc'd strings
 
@@ -111,7 +111,8 @@ Rocco (Hermes Agent on Discord) is the project memory and vault interface. The v
 - These feed the "Common pitfalls" section of contract sheets
 
 **After VERIFY/INTEGRATE (cycle complete):**
-- Send writeback to Rocco via Discord: `[palm_sync_4_mac] WRITEBACK — <summary>`
+- HARD GATE: do NOT send any writeback on cycle completion alone. Send the writeback to Rocco ONLY when BOTH conditions hold: (1) the PR/branch has been finally merged to main, AND (2) the user explicitly tells me to send it (their signoff). Never send it preemptively — awaiting user review is not a trigger.
+- Writeback via Discord: `[palm_sync_4_mac] WRITEBACK — <summary>`
 - Include: what was done, key decisions, learnings, test results, open questions
 - Rocco ingests: updates LEARNINGS.md, Decisions.md, ADP Transition.md, wiki pages
 

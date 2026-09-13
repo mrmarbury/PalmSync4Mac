@@ -1,7 +1,6 @@
 defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointmentTest do
   @moduledoc """
-  Tests for DatebookAppointment.from_calendar_event/2 alarm mapping
-  (Contract 3 of docs/contracts/ek-alarms-to-palm/contract.md) plus
+  Tests for DatebookAppointment.from_calendar_event/2 alarm mapping plus
   regression coverage for the pre-existing field mappings.
   """
   use ExUnit.Case, async: false
@@ -49,8 +48,8 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointmentTest do
 
   describe "from_calendar_event/2 alarm mapping" do
     test "empty alarms_seconds means no alarm under :first pick" do
-      # Contract: PalmSync4Mac.Comms.Pidlp.DatebookAppointment — empty alarms_seconds yields
-      # the struct-default alarm triple regardless of pick
+      # An empty stored list is the encoding of "user has no alarm", so
+      # the appointment must carry the struct-default alarm triple.
       put_pick(:first)
 
       appointment = build_event(alarms_seconds: []) |> build_appointment()
@@ -59,8 +58,8 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointmentTest do
     end
 
     test "empty alarms_seconds means no alarm under :last pick" do
-      # Contract: PalmSync4Mac.Comms.Pidlp.DatebookAppointment — empty alarms_seconds yields
-      # the struct-default alarm triple regardless of pick
+      # An empty stored list is the encoding of "user has no alarm", so
+      # the appointment must carry the struct-default alarm triple.
       put_pick(:last)
 
       appointment = build_event(alarms_seconds: []) |> build_appointment()
@@ -69,8 +68,8 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointmentTest do
     end
 
     test ":first pick selects the farthest offset and maps it to days" do
-      # Contract: PalmSync4Mac.Comms.Pidlp.DatebookAppointment — with pick :first the first
-      # offset -86400s becomes a 1-day alarm
+      # With :first the first offset (-86_400 s, farthest from the start
+      # on an ascending list) becomes a 1-day alarm.
       put_pick(:first)
 
       appointment = build_event(alarms_seconds: [-86_400, -600]) |> build_appointment()
@@ -79,8 +78,8 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointmentTest do
     end
 
     test ":last pick selects the closest offset and maps it to minutes" do
-      # Contract: PalmSync4Mac.Comms.Pidlp.DatebookAppointment — with pick :last the last
-      # offset -600s becomes a 10-minute alarm
+      # With :last the last offset (-600 s, closest to the start on an
+      # ascending list) becomes a 10-minute alarm.
       put_pick(:last)
 
       appointment = build_event(alarms_seconds: [-86_400, -600]) |> build_appointment()
@@ -89,8 +88,8 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointmentTest do
     end
 
     test "a single-element defaulted list maps identically under :first" do
-      # Contract: PalmSync4Mac.Comms.Pidlp.DatebookAppointment — a defaulted single-element
-      # list picks the same alarm under either pick
+      # Default substitution stores exactly one offset, so both picks
+      # must select the same alarm.
       put_pick(:first)
 
       appointment = build_event(alarms_seconds: [-600]) |> build_appointment()
@@ -99,8 +98,8 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointmentTest do
     end
 
     test "a single-element defaulted list maps identically under :last" do
-      # Contract: PalmSync4Mac.Comms.Pidlp.DatebookAppointment — a defaulted single-element
-      # list picks the same alarm under either pick
+      # Default substitution stores exactly one offset, so both picks
+      # must select the same alarm.
       put_pick(:last)
 
       appointment = build_event(alarms_seconds: [-600]) |> build_appointment()
@@ -109,7 +108,8 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointmentTest do
     end
 
     test "an offset divisible by hours maps to the Hours unit" do
-      # Contract: PalmSync4Mac.Comms.Pidlp.DatebookAppointment — a 2-hour offset maps to alarm_advance 2 in Hours units
+      # A 2-hour offset divides cleanly into hours, so the unit enum
+      # must be Hours (not 120 minutes).
       put_pick(:last)
 
       appointment = build_event(alarms_seconds: [-7200]) |> build_appointment()
@@ -118,7 +118,8 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointmentTest do
     end
 
     test "an offset divisible by days maps to the Days unit" do
-      # Contract: PalmSync4Mac.Comms.Pidlp.DatebookAppointment — a 2-day offset maps to alarm_advance 2 in Days units
+      # A 2-day offset divides cleanly into days, so the unit enum must
+      # be Days (the largest exact unit).
       put_pick(:last)
 
       appointment = build_event(alarms_seconds: [-172_800]) |> build_appointment()
@@ -127,8 +128,8 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointmentTest do
     end
 
     test "offset 0 is a valid at-start alarm" do
-      # Contract: PalmSync4Mac.Comms.Pidlp.DatebookAppointment — offset 0 means alarm at
-      # start: alarm true, advance 0, unit Minutes
+      # Zero means "alarm at event start": alarm true, advance 0, unit
+      # Minutes (the advance is 0, so the unit is cosmetic).
       put_pick(:last)
 
       appointment = build_event(alarms_seconds: [0]) |> build_appointment()
@@ -139,9 +140,9 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointmentTest do
 
   describe "from_calendar_event/2 existing mappings regression" do
     test "fully populated event keeps description, times, note, location and event flag" do
-      # Contract: PalmSync4Mac.Comms.Pidlp.DatebookAppointment — non-alarm mappings stay
-      # byte-identical: description ISO-8859-1 encoded, begin/end from event times, note
-      # built from notes and URL, location encoded
+      # The non-alarm mappings predate the alarm feature and must stay
+      # byte-identical: description ISO-8859-1 encoded, begin/end from
+      # event times, note built from notes and URL, location encoded.
       put_pick(:last)
 
       appointment =
@@ -167,8 +168,8 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointmentTest do
     end
 
     test "note omits a missing URL and ISO-8859-1 encodes non-ASCII notes" do
-      # Contract: PalmSync4Mac.Comms.Pidlp.DatebookAppointment — build_note joins only
-      # present parts and to_palm_encoding converts to ISO-8859-1
+      # build_note joins only the parts that are present and
+      # to_palm_encoding converts them to ISO-8859-1 for the Palm.
       put_pick(:last)
 
       appointment =
@@ -178,7 +179,7 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointmentTest do
     end
 
     test "a timeless event (start == end) sets the event flag" do
-      # Contract: PalmSync4Mac.Comms.Pidlp.DatebookAppointment — a zero-length event maps to event: true
+      # A zero-length event is a "timeless" entry on the Palm.
       put_pick(:last)
 
       appointment =
@@ -188,8 +189,8 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointmentTest do
     end
 
     test "rec_id is passed through unchanged, 0 still means new record" do
-      # Contract: PalmSync4Mac.Comms.Pidlp.DatebookAppointment — rec_id is passed through:
-      # non-zero on updates, 0 for new records
+      # rec_id is the Palm record id: non-zero on updates, 0 for new
+      # records (the Palm assigns the real id on first write).
       put_pick(:last)
 
       assert build_appointment(build_event(), 987_654).rec_id == 987_654
@@ -197,8 +198,8 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointmentTest do
     end
 
     test "all other struct fields keep their defaults" do
-      # Contract: PalmSync4Mac.Comms.Pidlp.DatebookAppointment — no field other than the
-      # alarm triple and the event-mirroring fields drifts from the struct defaults
+      # No field other than the alarm triple and the event-mirroring
+      # fields may drift from the struct defaults.
       put_pick(:last)
 
       appointment = build_event() |> build_appointment()

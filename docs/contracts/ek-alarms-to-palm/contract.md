@@ -29,7 +29,22 @@ CalendarEvent resource/migration, and C NIF are **out of scope** (done, approved
    offsets that exceed 255 in the divisibility-chosen unit are rounded **UP** to
    the next representable hour/day — better to alarm too early than too late,
    the user can snooze. Only exception: offsets > 255 days cap at 255 days (the
-   sole fires-later case). Documented as a known limitation in README.
+    sole fires-later case). Documented as a known limitation in README.
+8. PR #41 review round (engineer, 2026-09-13):
+   (a) `to_palm_alarm/2`'s option is named `:pick_alarm` (config symmetry); the
+       private pick helper is `picked_offset/2` (it returns an offset, not an alarm).
+   (b) The worker guards the port input: a non-list `alarms_seconds` value
+       (protocol drift or a stale binary) is treated as no alarms + a debug log —
+       runtime DATA errors degrade, they must not crash-loop the autosync worker.
+   (c) `clean/2` guards `default > 0` and raises FunctionClauseError otherwise —
+       CONFIG errors crash loudly (same philosophy as a missing `pick_alarm`).
+   (d) Test comments are standalone human prose (AGENTS.md rule), never
+       contract-pointer tags. Redundant `clean/2` examples are deleted in favor
+       of the properties; a new minimality property pins unit selection ("the
+       returned alarm is the earliest time the Palm can express that is not
+       later than requested, ties → largest unit"); the ladder-rung boundary
+       examples stay — random generators cannot hit exact flip points like
+       15_301 or 918_001.
 
 ---
 
@@ -45,6 +60,7 @@ DB holds only valid alarm data.
 | Input | Type | Constraints | Output | Type | Guarantee |
 |-------|------|-------------|--------|------|-----------|
 | `cal_date["alarms_seconds"]` | `list(integer) or nil` | signed ints, ascending per Swift | cleaned list | `list(integer)` | all elements `<= 0`, ascending; non-empty iff input non-empty |
+| non-list `alarms_seconds` (protocol drift) | any non-list term | port misbehaved | `[]` | `list(integer)` | degrade to no alarms + debug log, never a worker crash (decision 8b) |
 | `default_alarm_seconds` config | `pos_integer()` | from `:palm_sync_4_mac` app env, default 600 | used as fallback | — | only consulted when filtering empties a non-empty list |
 
 ### Behavior
@@ -101,7 +117,7 @@ the Palm→EK back-conversion.
 |-------|------|-------------|--------|------|-----------|
 | cleaned list | `list(integer)` | elements `<= 0` | `{alarm, advance, unit}` | `{boolean, non_neg_integer, :minutes or :hours or :days}` | see invariants |
 
-`opts` carries `pick` (`:first` or `:last`). No config reads, no logging.
+`opts` carries `pick_alarm` (`:first` or `:last`; named after the `config.exs` key). No config reads, no logging. The `:first`/`:last` semantics (farthest-from / closest-to start) rely on the Swift port delivering the list in ascending order.
 
 ### Invariants (all testable, property-test targets)
 
@@ -117,6 +133,8 @@ the Palm→EK back-conversion.
 10. `to_palm_alarm/2`: `advance = ceil(offset / unit_seconds)` in EVERY branch (identical to `div` when the value divides cleanly). Consequently the result never fires later than the requested time (`advance * unit_seconds >= offset`) except the >255d cap, and every ceil overshoot is less than one unit.
 11. `to_palm_alarm/2`: picked offset `0` → `{true, 0, :minutes}` (explicit override — 0 is divisible by everything; engineer decision Q4: "0 mins to start" reads as minutes; semantically "at start" since advance is 0).
 12. Bignum safety: any integer input (including absurd absoluteDate offsets) yields `advance <= 255` — downstream C `int` and wire byte can never overflow or wrap.
+13. Minimality (decision 8d): for `0 < offset <= 22_032_000`, the returned alarm is the EARLIEST time the Palm can express that is not later than requested (`advance * unit_seconds >= offset`, and no expressible value — m∈1..255 minutes, h∈1..255 hours, d∈1..255 days — lies strictly between `offset` and the result); when multiple units express the same result exactly, the largest unit is returned.
+14. `clean/2` guards its `default` option: `default <= 0` raises FunctionClauseError (loud config failure, decision 8c).
 
 ### Error cases
 
@@ -156,7 +174,7 @@ using the `pick_alarm` config, keeping the existing mappings untouched.
 ### Behavior
 
 - Read `pick_alarm` via `Application.fetch_env!(:palm_sync_4_mac, :pick_alarm)` at call time.
-- `alarm`, `alarm_advance`, `alarm_advance_units` = `AlarmPicker.to_palm_alarm(event.alarms_seconds, pick: pick)` with the unit atom mapped to its `AlarmAdvanceUnit` value (`:minutes → 0`, `:hours → 1`, `:days → 2`).
+- `alarm`, `alarm_advance`, `alarm_advance_units` = `AlarmPicker.to_palm_alarm(event.alarms_seconds, pick_alarm: pick)` with the unit atom mapped to its `AlarmAdvanceUnit` value (`:minutes → 0`, `:hours → 1`, `:days → 2`).
 - Signature, return shape, and all existing field mappings (description, begin, end, note, location, event, rec_id, encoding) byte-identical.
 
 ### Invariants

@@ -63,9 +63,8 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorker do
     case PalmSync4Mac.EventKit.PortHandler.get_events(interval, calendar) do
       {:ok, data} ->
         Enum.each(data["events"], fn cal_date ->
-          raw = cal_date["alarms_seconds"] || []
-          cleaned = AlarmPicker.clean(raw, default: default)
-          log_alarm_cleaning(cal_date["apple_event_id"], raw)
+          {raw_alarms, cleaned} = clean_event_alarms(cal_date, default)
+          log_alarm_cleaning(cal_date["apple_event_id"], raw_alarms)
 
           try do
             PalmSync4Mac.Entity.EventKit.CalendarEvent
@@ -90,8 +89,35 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorker do
     end
   end
 
-  # Cleaning events (discards, default substitution) log at :debug level only —
-  # see docs/contracts/ek-alarms-to-palm/contract.md, Contract 1.
+  # Trust boundary for the port payload: the Swift port normally delivers
+  # alarm offsets as a list of integers, but protocol drift or a stale port
+  # binary could produce anything else. A malformed value must degrade to
+  # "no alarms" with a debug note — never crash the worker, which would
+  # abort the sync of every remaining calendar. A nil key already means
+  # "no alarms" and stays silent. Returns the raw (made-safe) list for the
+  # debug logging alongside the cleaned list, so a non-list payload is
+  # treated exactly like "no alarms" everywhere downstream.
+  defp clean_event_alarms(cal_date, default) do
+    case cal_date["alarms_seconds"] do
+      nil ->
+        {[], []}
+
+      raw when is_list(raw) ->
+        {raw, AlarmPicker.clean(raw, default: default)}
+
+      raw ->
+        Logger.debug(
+          "alarms_seconds for event #{inspect(cal_date["apple_event_id"])} is not a list " <>
+            "(got #{inspect(raw)}); storing no alarms"
+        )
+
+        {[], []}
+    end
+  end
+
+  # Cleaning events (discarded positives, default substitution) are routine
+  # data bookkeeping, not sync progress: they log at :debug level only so
+  # they never pollute the default :info sync output.
   defp log_alarm_cleaning(apple_event_id, raw_alarms) do
     positive_count = Enum.count(raw_alarms, &(&1 > 0))
 

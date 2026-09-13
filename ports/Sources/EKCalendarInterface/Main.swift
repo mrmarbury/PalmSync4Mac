@@ -127,7 +127,7 @@ func getCalendarEvents(days: Int, calendar: String?, requestId: Int?) async {
 
 /// extracts the alarm offset from an event
 /// relativeOffset is always set but if absoluteDate is set, then relativeOffset is meaningless
-/// so we have to check if absoluteDate is set first 
+/// so we have to check if absoluteDate is set first
 func alarmOffsetSeconds(_ alarm: EKAlarm, eventStart: Date) -> Int {
     if let absDate = alarm.absoluteDate {
         return Int(absDate.timeIntervalSince(eventStart).rounded())

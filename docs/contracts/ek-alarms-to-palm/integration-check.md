@@ -4,13 +4,13 @@ Date: 2026-09-12 · ultrawork session 20260911-234219 · branch 31-propagate-eke
 
 ## Full test suite
 
-`mix test` → **9 properties, 130 tests, 0 failures** (pre-branch baseline 2+94 all still green; 36 net-new assertions across 3 new test files)
+`mix test` → **10 properties, 128 tests, 0 failures** (pre-branch main baseline 2+94 all still green; net-new: 36 traced tests across 3 new test files, minus 4 redundant examples folded into properties, plus the minimality property and guard tests from the PR review round)
 
 ## Static analysis
 
 - `mix format --check-formatted` → clean
-- `mix compile` → clean (23 warnings: 15 pre-existing typed_struct/NIF-mock, 7 generated-NIF pointer types, 1 pilot_user fetch_env — all pre-existing, zero from changed code)
-- `mix credo --strict` → 3 readability + 12 design = exact pre-existing baseline, zero new
+- `mix compile` → clean (15 warnings on a full recompile: 7 typed_struct validation_type + 7 generated-NIF pointer types + 1 pilot_user fetch_env — all pre-existing, zero from changed code)
+- `mix credo --strict` → 0 readability + 11 design = exactly origin/main, zero new (the PR review round fixed 3R+1D that earlier branch commits had added)
 - `mix dialyzer` → 1 error only: pre-existing exempt `unknown_type DatebookAppointment.t/0` (datebook_appointment.ex:113, unchanged line)
 
 ## Build check
@@ -23,7 +23,7 @@ None. All pre-existing test files pass unmodified. The two modified lib function
 
 ## System-level fit (data journey verified)
 
-Swift extraction (untouched) → worker cleaning (new) → CalendarEvent storage (untouched schema) → AppointmentWorker query (untouched) → from_calendar_event mapping (new) → C NIF pack (untouched) → Palm wire. Deleted blueprint replaced by docs/contracts/ek-alarms-to-palm/ (context-brief, contract, architecture-decision, backlog). README Known Limitations added. Config comments corrected to match implemented semantics.
+Swift extraction (untouched by this cycle) → worker cleaning (new) → CalendarEvent storage (schema change came from earlier branch commit 1feb8f7: `alarms_seconds` attribute + migration) → AppointmentWorker query (untouched) → from_calendar_event mapping (new) → C NIF pack (untouched) → Palm wire. Deleted blueprint replaced by docs/contracts/ek-alarms-to-palm/ (context-brief, contract, architecture-decision, backlog). README Known Limitations added. Config comments corrected to match implemented semantics.
 
 ## Sign-off
 

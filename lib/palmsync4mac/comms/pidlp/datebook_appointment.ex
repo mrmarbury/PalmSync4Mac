@@ -114,7 +114,7 @@ defmodule PalmSync4Mac.Comms.Pidlp.DatebookAppointment do
   def from_calendar_event(%CalendarEvent{} = event, rec_id \\ 0) do
     pick = Application.fetch_env!(:palm_sync_4_mac, :pick_alarm)
 
-    {alarm, advance, unit} = AlarmPicker.to_palm_alarm(event.alarms_seconds, pick: pick)
+    {alarm, advance, unit} = AlarmPicker.to_palm_alarm(event.alarms_seconds, pick_alarm: pick)
 
     {event,
      %__MODULE__{

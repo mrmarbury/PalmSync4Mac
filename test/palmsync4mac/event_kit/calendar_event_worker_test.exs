@@ -1,10 +1,9 @@
 defmodule PalmSync4Mac.EventKit.CalendarEventWorkerTest do
   @moduledoc """
-  Tests for CalendarEventWorker.sync_calendar/2 alarm cleaning (Contract 1 of
-  docs/contracts/ek-alarms-to-palm/contract.md): raw Apple alarm offsets are
-  cleaned once at the write path — positives discarded, defaults substituted —
-  and the cleaned list becomes BOTH the stored attribute and the
-  `new_alarms_seconds` upsert condition argument.
+  Tests for CalendarEventWorker.sync_calendar/2 alarm cleaning: raw Apple
+  alarm offsets are cleaned once at the write path — positives discarded,
+  defaults substituted — and the cleaned list becomes BOTH the stored
+  attribute and the `new_alarms_seconds` upsert condition argument.
   """
   use ExUnit.Case, async: false
   use Patch
@@ -84,10 +83,11 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorkerTest do
   end
 
   describe "sync_calendar/2 alarm cleaning" do
-    # Contract: PalmSync4Mac.EventKit.CalendarEventWorker — mixed alarm offsets:
-    # positives are discarded, the cleaned list is stored, and the very same
-    # list is used as the new_alarms_seconds upsert argument (a re-sync of the
-    # unchanged event must therefore be rejected as stale, not silently updated).
+    # A mixed offset list exercises the whole cleaning path at once:
+    # positives are discarded, the cleaned list is stored, and the very
+    # same list is used as the new_alarms_seconds upsert argument — a
+    # re-sync of the unchanged event must therefore be rejected as
+    # stale, not silently updated.
     test "mixed offsets keep only the valid ones in both attrs and upsert arg", %{pid: pid} do
       apple_id = unique_apple_id("mixed")
       event = event_fixture(apple_id, [-600, 300])
@@ -105,9 +105,9 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorkerTest do
       assert fetch_event(apple_id).alarms_seconds == [-600]
     end
 
-    # Contract: PalmSync4Mac.EventKit.CalendarEventWorker — a missing
-    # "alarms_seconds" key (nil) means "no alarm": stored as [] and NO default
-    # is inserted (nil-to-[] handling is the worker's job).
+    # A missing "alarms_seconds" key means "no alarm": stored as [] and NO
+    # default is inserted — nil-to-[] handling is the worker's job, since
+    # an absent key carries no "the user wanted an alarm" signal.
     test "missing alarms_seconds key stores [] without inserting a default", %{pid: pid} do
       apple_id = unique_apple_id("missing")
       event = event_fixture(apple_id, nil) |> Map.drop(["alarms_seconds"])
@@ -119,8 +119,8 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorkerTest do
       assert row.alarms_seconds == []
     end
 
-    # Contract: PalmSync4Mac.EventKit.CalendarEventWorker — an explicitly empty
-    # alarm list stays empty: no default is inserted.
+    # An explicitly empty alarm list is a positive "user has no alarm"
+    # statement, so no default may be smuggled in.
     test "explicit empty alarm list stays [] with no default", %{pid: pid} do
       apple_id = unique_apple_id("empty")
       sync_once(pid, [event_fixture(apple_id, [])])
@@ -130,9 +130,9 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorkerTest do
       assert row.alarms_seconds == []
     end
 
-    # Contract: PalmSync4Mac.EventKit.CalendarEventWorker — if the original list
-    # was non-empty but fully filtered (all offsets positive), exactly the
-    # default [-default_alarm_seconds] is stored.
+    # The user did set alarms, they were just all unrepresentable
+    # (positive); exactly the configured default is stored so the event
+    # keeps having an alarm.
     test "all-positive offsets substitute the default alarm", %{pid: pid} do
       apple_id = unique_apple_id("all-positive")
       sync_once(pid, [event_fixture(apple_id, [300, 600])])
@@ -142,8 +142,8 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorkerTest do
       assert row.alarms_seconds == [-600]
     end
 
-    # Contract: PalmSync4Mac.EventKit.CalendarEventWorker — valid (non-positive)
-    # offsets are stored as-is in original order; no default is inserted.
+    # Valid (non-positive) offsets need no processing at all: stored
+    # as-is in original order, no default inserted.
     test "valid-only offsets are stored unchanged with no default", %{pid: pid} do
       apple_id = unique_apple_id("valid-only")
       sync_once(pid, [event_fixture(apple_id, [-3600, -60])])
@@ -153,8 +153,8 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorkerTest do
       assert row.alarms_seconds == [-3600, -60]
     end
 
-    # Contract: PalmSync4Mac.EventKit.CalendarEventWorker — offset 0 (alarm at
-    # event start) is valid user intent: kept, only positives are discarded.
+    # Offset 0 is valid user intent ("alarm at event start"): kept —
+    # only positives are discarded.
     test "zero offset is a valid alarm and is kept", %{pid: pid} do
       apple_id = unique_apple_id("zero")
       sync_once(pid, [event_fixture(apple_id, [0, 300])])
@@ -163,12 +163,43 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorkerTest do
       refute is_nil(row)
       assert row.alarms_seconds == [0]
     end
+
+    # The Swift port normally delivers a list of integers here, but a
+    # stale port binary or protocol drift could deliver anything else. A
+    # malformed payload must degrade to "no alarms" plus a debug note and
+    # never crash the worker — a crash would abort the sync of every
+    # remaining calendar and repeat on the next autosync tick.
+    test "a non-list alarms_seconds payload stores [] without crashing the worker", %{pid: pid} do
+      binary_id = unique_apple_id("non-list-binary")
+      map_id = unique_apple_id("non-list-map")
+      good_id = unique_apple_id("non-list-after")
+
+      log =
+        capture_log([level: :debug], fn ->
+          sync_once(pid, [
+            event_fixture(binary_id, "stale binary"),
+            event_fixture(map_id, %{"drifted" => true}),
+            event_fixture(good_id, [-600])
+          ])
+        end)
+
+      # Both malformed events are still upserted — with no alarms.
+      assert fetch_event(binary_id).alarms_seconds == []
+      assert fetch_event(map_id).alarms_seconds == []
+
+      # The loop continued past the bad payloads and the worker survived.
+      assert fetch_event(good_id).alarms_seconds == [-600]
+      assert log =~ "is not a list"
+      assert log =~ ~s(got "stale binary")
+      assert log =~ ~s(got %{"drifted" => true})
+      assert Process.alive?(pid)
+    end
   end
 
   describe "sync_calendar/2 cleaning log level" do
-    # Contract: PalmSync4Mac.EventKit.CalendarEventWorker — cleaning events
-    # (discards, default substitution) log at :debug: visible in a :debug-level
-    # capture...
+    # Discarding offsets and substituting defaults are routine data
+    # bookkeeping, not sync progress: the messages must be visible at
+    # :debug level...
     test "discard and substitution messages appear at debug level", %{pid: pid} do
       mixed_id = unique_apple_id("log-mixed")
       positive_id = unique_apple_id("log-positive")
@@ -185,9 +216,8 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorkerTest do
       assert log =~ "substituted default alarm"
     end
 
-    # Contract: PalmSync4Mac.EventKit.CalendarEventWorker — ...and never at
-    # :info or above (an :info capture sees the sync happen but no alarm
-    # cleaning messages).
+    # ...and never at :info or above (an :info capture sees the sync
+    # happen but no alarm cleaning messages).
     test "cleaning messages do not appear at info level", %{pid: pid} do
       positive_id = unique_apple_id("log-info")
 
@@ -205,10 +235,10 @@ defmodule PalmSync4Mac.EventKit.CalendarEventWorkerTest do
   end
 
   describe "sync_calendar/2 stale upsert rescue" do
-    # Contract: PalmSync4Mac.EventKit.CalendarEventWorker — unchanged events
-    # (same last_modified + same cleaned alarms re-synced) are rejected by the
-    # upsert condition and rescued by the existing warning branch; the rescue
-    # must survive the cleaning change unchanged.
+    # Unchanged events (same last_modified + same cleaned alarms
+    # re-synced) are rejected by the upsert condition and rescued by the
+    # existing warning branch; that rescue must survive the cleaning
+    # change unchanged.
     test "stale re-sync is rescued with the existing warning, row intact", %{pid: pid} do
       apple_id = unique_apple_id("stale")
       event = event_fixture(apple_id, [-600])
