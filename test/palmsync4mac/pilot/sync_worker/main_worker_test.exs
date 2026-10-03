@@ -8,6 +8,14 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
 
   @moduletag :capture_log
 
+  # terminate/2 runs in the test process when called directly, so a process
+  # dictionary log is enough to verify the exact call order of the mocked
+  # Pidlp functions.
+  defp log_call(call) do
+    key = {__MODULE__, :terminate_calls}
+    Process.put(key, [call | Process.get(key, [])])
+  end
+
   describe "init/1" do
     test "initializes with PilotSyncRequest and continues with :connect" do
       request = %PilotSyncRequest{}
@@ -409,6 +417,99 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorkerTest do
   end
 
   describe "terminate/2" do
+    setup do
+      patch(PalmSync4Mac.Comms.Pidlp, :end_of_sync, fn client_sd, _status ->
+        {:ok, client_sd, 0}
+      end)
+
+      :ok
+    end
+
+    # Palm OS commits the session bookkeeping (HotSync log entry, last-sync
+    # timestamps, user info) only when it receives the EndOfSync DLP command.
+    # A session that just drops the connection is rolled back by the device.
+    test "sends end_of_sync with normal status before disconnecting" do
+      patch(PalmSync4Mac.Comms.Pidlp, :end_of_sync, fn client_sd, status ->
+        log_call({:end_of_sync, client_sd, status})
+        {:ok, client_sd, 0}
+      end)
+
+      patch(PalmSync4Mac.Comms.Pidlp, :pilot_disconnect, fn client_sd, parent_sd ->
+        log_call({:pilot_disconnect, client_sd, parent_sd})
+        {:ok, client_sd, parent_sd}
+      end)
+
+      patch(SyncWorkers, :which_children, fn -> [] end)
+
+      state = %PilotSyncRequest{client_sd: 42, parent_sd: 43}
+
+      MainWorker.terminate(:normal, state)
+
+      assert Enum.reverse(Process.get({__MODULE__, :terminate_calls})) == [
+               {:end_of_sync, 42, 0},
+               {:pilot_disconnect, 42, 43}
+             ]
+    end
+
+    test "reports abnormal termination with the non-zero abort status" do
+      patch(PalmSync4Mac.Comms.Pidlp, :end_of_sync, fn client_sd, status ->
+        log_call({:end_of_sync, client_sd, status})
+        {:ok, client_sd, status}
+      end)
+
+      patch(PalmSync4Mac.Comms.Pidlp, :pilot_disconnect, fn client_sd, parent_sd ->
+        {:ok, client_sd, parent_sd}
+      end)
+
+      patch(SyncWorkers, :which_children, fn -> [] end)
+
+      state = %PilotSyncRequest{client_sd: 42, parent_sd: 43}
+
+      MainWorker.terminate(:killed, state)
+
+      assert Enum.reverse(Process.get({__MODULE__, :terminate_calls})) == [
+               {:end_of_sync, 42, 3}
+             ]
+    end
+
+    test "still disconnects when end_of_sync fails" do
+      patch(PalmSync4Mac.Comms.Pidlp, :end_of_sync, fn _client_sd, _status ->
+        {:error, 42, -1}
+      end)
+
+      patch(PalmSync4Mac.Comms.Pidlp, :pilot_disconnect, fn client_sd, parent_sd ->
+        send(self(), {:disconnect_called, client_sd, parent_sd})
+        {:ok, client_sd, parent_sd}
+      end)
+
+      patch(SyncWorkers, :which_children, fn -> [] end)
+
+      state = %PilotSyncRequest{client_sd: 42, parent_sd: 43}
+
+      MainWorker.terminate(:normal, state)
+
+      assert_received {:disconnect_called, 42, 43}
+    end
+
+    test "skips end_of_sync when the sync never connected" do
+      patch(PalmSync4Mac.Comms.Pidlp, :end_of_sync, fn _client_sd, _status ->
+        send(self(), :end_of_sync_should_not_be_called)
+        {:ok, 0, 0}
+      end)
+
+      patch(PalmSync4Mac.Comms.Pidlp, :pilot_disconnect, fn client_sd, parent_sd ->
+        {:ok, client_sd, parent_sd}
+      end)
+
+      patch(SyncWorkers, :which_children, fn -> [] end)
+
+      state = %PilotSyncRequest{client_sd: -1, parent_sd: -1}
+
+      MainWorker.terminate(:normal, state)
+
+      refute_received :end_of_sync_should_not_be_called
+    end
+
     test "calls pilot_disconnect with correct client_sd and parent_sd" do
       patch(PalmSync4Mac.Comms.Pidlp, :pilot_disconnect, fn client_sd, parent_sd ->
         send(self(), {:disconnect_called, client_sd, parent_sd})

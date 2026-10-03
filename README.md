@@ -30,6 +30,10 @@ MIX_ENV=test mix ash_sqlite.migrate
 
 If you see "no such table" errors in tests, the test database is out of date — re-run the commands above.
 
+The same applies to the dev database (`dev.sqlite`) at sync time: an error like
+`no such column: c0.alarms_seconds` when syncing means the dev database predates
+a schema change — run `mix ash_sqlite.migrate` (without `MIX_ENV=test`).
+
 ### Stale Build Cache
 
 If `mix` tasks fail with dependency version mismatches after updating deps (e.g. `ash 3.5.23 does not match ~> 3.7`), the `_build/` cache is stale. Mix reads compiled `.app` files for version info, not the lock file. Fix:
@@ -71,6 +75,53 @@ ollama serve   # OpenAI-compatible API at http://localhost:11434/v1
 `GRAFT_PROVIDER` selects the wire format: `openai` | `anthropic` | `litellm` | `orcarouter`. No embedding models are needed — graft's deep pass is summarization-only.
 
 Other tooling (no configuration required): the hexdocs MCP server (`.opencode/opencode.jsonc`, fetched on demand via npx) and the igniter dev/test dependency.
+
+## Device Onboarding — read this before your first sync
+
+How a Palm gets its identity in PalmSync4Mac:
+
+- **A device that already carries a name** (it was named on the Palm itself or
+  by a previous sync) is **adopted as-is**. It **cannot be renamed** — this is
+  a hardware limitation of Palm OS, which silently ignores username writes on
+  established devices. The name it reports is the name it keeps, and it is the
+  database key that ties the device to its sync history.
+- **A blank/freshly wiped device** takes the explicit name you pass to the
+  `UserInfoWorker.pre_sync` call in the sync queue (until there is a UI, edit
+  the tuple in `PalmSync4Mac.Pilot.SyncTest.sync/0`):
+
+  ```elixir
+  {UserInfoWorker, :pre_sync, ["My TX"]}
+  ```
+
+  A device that already carries a name ignores the argument, so leaving or
+  passing a name is always safe for established devices.
+
+- **With no argument**, the sync generates a random 5-character name
+  (`[a-z0-9]`, e.g. `q7f3m`).
+
+> **⚠️ The name you first sync with becomes the device's PERMANENT identity.**
+> Palm names are immutable after the first sync — the device keeps whatever
+> name it received in that first session, forever. To get a nice label on your
+> Palm, onboard with an explicit name as shown above. If you let a random
+> generated name stick, the only way to change it is a hard reset plus a
+> clean database (see below).
+
+A re-onboarded device — hard-reset hardware that re-enters sync asking for a
+name the database already knows — gets its full calendar re-pushed from
+scratch: the per-device sync bookkeeping is deliberately reset so the empty
+device is repopulated cleanly.
+
+### Clean slate (forget a device entirely)
+
+To make a device completely unknown to PalmSync4Mac again:
+
+1. Hard-reset the Palm (so it reports a blank name), **and**
+2. Delete the dev database files: `dev.sqlite` plus `dev.sqlite-wal` and
+   `dev.sqlite-shm` if present, then `mix ash_sqlite.create && mix ash_sqlite.migrate`.
+
+Doing only one of the two leaves a half-known device: a wiped Palm re-meeting
+an old row triggers the re-onboard path (and a full re-push), and a blank
+database meeting a named Palm adopts the device's old name again.
 
 ## Known Limitations
 
@@ -114,7 +165,7 @@ Sometimes this might be needed to get new dependencies right:
 ### Run the sync - for now, until there is a UI
 
 1. `iex -S mix`
-1. `PalmSync4Mac.Pilot.SyncTest.sync`
+1. `PalmSync4Mac.Pilot.SyncTest.sync()` — for a blank device with no name argument this generates a random identity (see [Device Onboarding](#device-onboarding--read-this-before-your-first-sync)); to name it, put the name in the `UserInfoWorker` pre_sync tuple as described there
 
 ### Links
 

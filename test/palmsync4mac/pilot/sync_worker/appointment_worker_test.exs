@@ -68,6 +68,45 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorkerTest do
       assert calendar_event.id in event_ids
     end
 
+    test "warns when the device has zero join rows but still returns all events", %{
+      palm_user: palm_user,
+      calendar_event: calendar_event
+    } do
+      # Zero join rows means every event comes back unsynced with rec_id=0:
+      # correct right after onboarding (full clean push) but also the visible
+      # symptom of lost sync status. The warning is warn-only — the results
+      # are identical either way, so only the log distinguishes the cases.
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          {:ok, results} = AppointmentWorker.list_unsynced_for_device(palm_user.id)
+          event_ids = Enum.map(results, fn {event, _rec_id} -> event.id end)
+          assert calendar_event.id in event_ids
+        end)
+
+      assert log =~ "has no ek_calendar_datebook_sync_status rows"
+      assert log =~ "Expected on first sync after onboarding"
+      assert log =~ "sync status data may have been lost"
+
+      # Once the device carries at least one join row, the amplifier stays
+      # quiet — the warning fires only in the genuinely ambiguous case.
+      EkCalendarDatebookSyncStatus
+      |> Ash.Changeset.for_create(:create_or_update, %{
+        palm_user_id: palm_user.id,
+        calendar_event_id: calendar_event.id,
+        rec_id: 5,
+        last_synced_version: calendar_event.version,
+        last_sync_success: true
+      })
+      |> Ash.create()
+
+      quiet =
+        ExUnit.CaptureLog.capture_log(fn ->
+          {:ok, _results} = AppointmentWorker.list_unsynced_for_device(palm_user.id)
+        end)
+
+      refute quiet =~ "has no ek_calendar_datebook_sync_status rows"
+    end
+
     test "returns events with join row rec_id=0 after failed sync attempt", %{
       palm_user: palm_user,
       calendar_event: calendar_event

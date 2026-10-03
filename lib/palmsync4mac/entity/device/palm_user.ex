@@ -24,6 +24,22 @@ defmodule PalmSync4Mac.Entity.Device.PalmUser do
       ],
       eager_check?: true
     )
+
+    # user_id is the Palm device integer that onboarding provisions DB-side as
+    # max(existing user_id) + 1 and then writes to the device in the same
+    # session. Provisioning runs inside a transaction, but a concurrent
+    # onboarding race could still compute the same max+1 twice — the unique
+    # index behind this identity is the backstop that turns that race into an
+    # {:error, reason} abort instead of two devices silently sharing an id.
+    # eager_check stays off deliberately: the username identity is the upsert
+    # key, and an eager read for user_id on every upsert would add a query
+    # per sync for a race the database already rejects atomically.
+    identity(
+      :unique_user_id,
+      [
+        :user_id
+      ]
+    )
   end
 
   actions do
