@@ -71,12 +71,42 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.MainWorker do
   end
 
   @impl true
-  def terminate(_reason, state) do
+  def terminate(reason, state) do
     Logger.info("Stopping #{__MODULE__} at the end of the sync")
+    end_sync(state.client_sd, reason)
     Pidlp.pilot_disconnect(state.client_sd, state.parent_sd)
     terminate_children()
     :ok
   end
+
+  # Palm OS commits the sync session bookkeeping — the HotSync log entry, the
+  # last-sync timestamps and the user info — only when the device receives the
+  # EndOfSync DLP command. A session that simply drops the connection makes
+  # the device wait for a timeout and then roll the session back. pilot-link's
+  # pi_close does send EndOfSync, but only while its internal socket state is
+  # clean, and drops the command silently otherwise, which is why every
+  # reference implementation (pilot-install-user, pilot-dlpsh, J-Pilot,
+  # coldsync) sends it explicitly instead. A normal stop is reported with
+  # status 0 so the device commits the session; every other termination
+  # reason is reported with the non-zero "other" status, which the DLP
+  # documentation prescribes as the reasonable way to abort a sync. A failed
+  # EndOfSync only means the device may revert this session's bookkeeping —
+  # it must never block the disconnect below, which releases the sockets.
+  defp end_sync(client_sd, reason) when client_sd >= 0 do
+    status = if reason == :normal, do: 0, else: 3
+
+    case Pidlp.end_of_sync(client_sd, status) do
+      {:ok, _client_sd, _result} ->
+        Logger.info("Ended HotSync session with status #{status}")
+
+      {:error, _client_sd, result} ->
+        Logger.warning(
+          "EndOfSync failed with result #{result}. The Palm may revert this session's bookkeeping."
+        )
+    end
+  end
+
+  defp end_sync(_client_sd, _reason), do: :ok
 
   @impl true
   def handle_continue(:connect, state) do

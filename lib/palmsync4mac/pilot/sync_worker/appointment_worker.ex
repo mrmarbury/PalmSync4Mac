@@ -68,6 +68,23 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.AppointmentWorker do
   def list_unsynced_for_device(palm_user_id) do
     with {:ok, all_events} <- Ash.read(CalendarEvent),
          {:ok, sync_statuses} <- read_sync_statuses(palm_user_id) do
+      # A palm_user with zero join rows means every event will come back as
+      # unsynced with rec_id=0 — the correct behavior only right after
+      # onboarding or a re-onboarding join reset, when a full clean push is
+      # exactly what the device needs. It would ALSO be the visible symptom
+      # of the join table silently losing data, so leave a breadcrumb here
+      # instead of changing the behavior: this is the amplifier's decision
+      # point and the log is the only way to tell the two cases apart after
+      # the fact.
+      if sync_statuses == [] do
+        Logger.warning(
+          "palm_user #{palm_user_id} has no ek_calendar_datebook_sync_status rows; " <>
+            "returning all #{length(all_events)} calendar events for a full push. " <>
+            "Expected on first sync after onboarding; if this is NOT a freshly " <>
+            "onboarded or re-onboarded device, the sync status data may have been lost."
+        )
+      end
+
       synced_map =
         sync_statuses
         |> Enum.map(fn status -> {status.calendar_event_id, status} end)
