@@ -14,7 +14,7 @@ One independent clause in a subject-verb pattern.
 - This dataset contains 120 years of match records.
 - Performance declined sharply after the 2018 rule changes.
 
-**Target:** 20–30% of sentences per paragraph.
+**Guidance:** Use when a direct assertion is clearest; no paragraph quota.
 
 ### 2. Compound sentence
 
@@ -28,7 +28,7 @@ Two independent clauses connected by a coordinating conjunction (FANBOYS: for, a
 - Match duration increased by 15%, and spectator attendance declined in parallel.
 - Nadal dominated the clay court, yet Djokovic maintained superiority on hard surfaces.
 
-**Target:** 15–25% of sentences per paragraph.
+**Guidance:** Use when the relationship between clauses matters; no paragraph quota.
 
 ### 3. Complex sentence
 
@@ -42,7 +42,7 @@ One independent clause + one dependent clause (introduced by a subordinating con
 - Although the dataset spans 121 seasons, only matches after 1968 include detailed set-level data.
 - Because five-set matches impose greater physical demands, average rally length decreases in the fourth and fifth sets.
 
-**Target:** 30–40% of sentences per paragraph (primary structure for academic prose).
+**Guidance:** Use to state an actual causal, conditional, or temporal relationship; no paragraph quota.
 
 ### 4. Compound-complex sentence
 
@@ -56,21 +56,18 @@ Two or more independent clauses + one or more dependent clauses.
 - While set durations vary considerably between Grand Slam events, the median match length has increased by 12 minutes since 2000, and this trend correlates with advances in racket technology.
 - Because the 1905–1968 era lacked professional circuits, participation remained limited to amateur players; however, match records from this period still provide valuable longitudinal data.
 
-**Target:** 10–20% of sentences per paragraph (use sparingly for maximum impact).
+**Guidance:** Use only when combining the clauses makes the argument clearer; no paragraph quota.
 
 ## Variation rules
 
 ### Within a paragraph
 
-1. Never place 3+ sentences of the same type consecutively
-2. Vary sentence length:
-   - Short: 8–15 words (for impact)
-   - Medium: 16–25 words (for flow)
-   - Long: 26–40 words (for depth)
-3. Paragraphs of 4+ sentences should contain at least 3 of the 4 sentence types; short emphasis paragraphs (2–3 sentences) are exempt
-4. Vary paragraph length (2–8 sentences); uniform blocks signal AI
+1. Review repeated structures where they obscure emphasis or progression.
+2. Let sentence length follow the argument; split overloaded sentences and preserve useful short assertions.
+3. Do not require a fixed mix of sentence types in each paragraph.
+4. Vary paragraph length where it improves the argument; uniform blocks alone do not identify AI authorship.
 
-> For detailed burstiness detection, semicolon limits, and paragraph length variation rules, see `anti-ai-checklist.md` §9.
+> For rhythm review and punctuation limits, see `anti-ai-checklist.md`, sections "Rhythm and sentence structure" and "Formatting".
 
 ### Sentence openers (vary these)
 
@@ -84,7 +81,7 @@ Two or more independent clauses + one or more dependent clauses.
 | Transitional phrase | "By contrast, the women's draw exhibited..." |
 | Inverted structure | "Particularly notable is the decline in..." |
 
-**Rule:** No 3+ consecutive sentences beginning with the same opener type.
+**Diagnostic:** Review repeated openers for clarity and emphasis; keep deliberate repetition when it serves the argument.
 
 ## Common errors to prevent
 
@@ -132,7 +129,7 @@ Every sentence must be fully understandable when read in isolation. If a sentenc
 
 > Nursing educators argue that strict measures should be implemented to avoid infection in medical institutions. Considerable evidence links falling hygiene standards to sharply rising infection rates. Because these risks escalate quickly once standards slip, institutions must adopt procedures that reduce them. To this end, hospitals should require all staff to maintain effective hygiene, and managers should audit compliance at regular intervals.
 
-**Improvements:** Varied openers (subject-first, dependent clause, transitional phrase), mixed simple/complex/compound structures, varied sentence lengths, logical flow from claim → evidence → argument → recommendation — with no banned generic verbs as main verbs and no flagged AI vocabulary.
+**Improvements:** Varied openers (subject-first, dependent clause, transitional phrase), mixed simple/complex/compound structures, varied sentence lengths, logical flow from claim → evidence → argument → recommendation, accurate verbs, and no unnecessary inflated vocabulary.
 
 ## Quick reference: conjunction inventory
 

@@ -1,9 +1,9 @@
 ---
-name: oma-orchestrator
-description: Automated multi-agent orchestrator that spawns CLI subagents in parallel, coordinates via MCP Memory, and monitors progress. Use for orchestration, parallel execution, and automated multi-agent workflows.
+name: oma-orchestration
+description: "Dispatch and supervise parallel specialist agents with durable task state. Use when automated multi-agent execution is requested."
 ---
 
-# Orchestrator - Automated Multi-Agent Coordinator
+# Orchestration - Automated Multi-Agent Coordination
 
 ## Scheduling
 
@@ -40,9 +40,9 @@ Automatically orchestrate multi-agent execution with task decomposition, native/
 - Memory provider config, subagent prompt template, scripts, task templates, verify script, and session metrics
 
 ### Control-flow features
-- Branches by vendor/native dispatch availability, priority tiers, agent completion/failure, verification status, QA verdict, retry limits, and clarification debt
+- Branches by vendor/native dispatch availability, priority tiers, agent completion/failure, verification status, QA verdict, retry limits, and unresolved decisions
 - Spawns processes/agents and reads/writes memory/result files
-- Blocks termination until persistent workflows complete
+- Preserves unresolved evidence when bounded recovery stops
 
 ## Structural Flow
 
@@ -50,31 +50,31 @@ Automatically orchestrate multi-agent execution with task decomposition, native/
 1. Resolve agent vendor routing and runtime dispatch path.
 2. Decompose request into priority-tiered tasks.
 3. For each task, classify into one or more `domain_tags` by matching against the `Intent signature` block of each installed `.agents/skills/oma-*/SKILL.md`. Tasks that match no domain confidently inherit the union of their parent feature's tags.
-4. Build a per-task `exposed_skill_set` = skills whose name is in `domain_tags`. If `|exposed_skill_set| < 2` after classification, fall back to the full installed set (flat exposure) and record `exposure_fallback: true` in the task board.
-5. Create session memory and task board with `exposed_skill_set` and `exposure_fallback` per task.
+4. Select the references needed by each task. One confidently matched skill is sufficient; expand the set when classification is uncertain or a dependency requires another domain.
+5. Record selected domains, references, and any fallback reason in the task board. These are coordinator notes, not launcher-enforced exposure fields; use only reference/context controls supported by the active dispatch path.
 
 ### Scenes
 1. **PREPARE**: Plan, setup session ID, and initialize memory files.
 2. **ACT**: Spawn agents by priority tier within parallelism limits.
 3. **VERIFY**: Run self-check, `oma verify`, and QA cross-review loop.
 4. **RECOVER**: Retry failed agents with review history when limits allow.
-5. **FINALIZE**: Collect result files, compile summary, and clean progress files.
+5. **FINALIZE**: Collect verified claims, compile summary, and preserve progress artifacts.
 
 ### Transitions
 - If native dispatch is available for current runtime/vendor, use it.
 - If vendors differ or native path is unavailable, use fallback spawn.
 - If verify or QA fails, feed feedback back to the implementation agent.
-- If review loop limits are exceeded, report review history and quality warning.
-- If a task's `exposed_skill_set` excludes a skill that a recovered failure indicates was needed, re-classify the task and re-dispatch with the expanded set rather than retrying against the original narrow set.
+- If recovery limits are exceeded, preserve review history and return `partial` or `failed`; never force completion.
+- If recovery shows that a required domain reference was missing, update the task's reference selection without changing its frozen acceptance contract, and supply it through the supported context mechanism.
 
 ### Failure and recovery
 - Retry failed agents up to configured limits.
 - Re-spawn with review history when review loop is exhausted.
-- Pause or request re-specification when clarification debt thresholds are exceeded.
+- Continue independent work after recording material corrections; ask only for a material missing decision.
 
 ### Exit
 - Success: all tasks complete, verify/review pass, and results are summarized.
-- Partial success: failed agents, exhausted review loops, or clarification debt are explicit.
+- Partial success: failed agents, exhausted review loops, or missing verification are explicit.
 
 ## Logical Operations
 
@@ -83,23 +83,23 @@ Automatically orchestrate multi-agent execution with task decomposition, native/
 |--------|---------------|----------|
 | Read config and task context | `READ` | oma config, routing, request |
 | Classify task into domain tags | `INFER` | task text vs each skill's `Intent signature` |
-| Compute exposed skill set | `SELECT` | intersection of domain tags and installed skills |
+| Select task references | `SELECT` | confident domain matches, dependencies, and supported context controls |
 | Select dispatch path | `SELECT` | Native vs fallback |
 | Write session state | `WRITE` | task board and memory files |
-| Spawn agents | `CALL_TOOL` | native CLI or `oma agent spawn` |
+| Spawn agents | `CALL_TOOL` | exposed native role-subagent tool or `oma agent spawn` |
 | Poll progress | `READ` | progress/result files |
 | Run verification | `CALL_TOOL` | `oma verify`, tests, QA |
 | Update retry state | `UPDATE_STATE` | loop counters and CD metrics |
 | Report final result | `NOTIFY` | compiled summary |
 
 ### Tools and instruments
-- Native CLI subagent dispatch, fallback spawn scripts, memory tools, verify script, QA agent
+- Exposed native role-subagent tools, fallback spawn scripts, memory tools, verify script, QA agent
 - Session metrics, prompt templates, task templates
 
 ### Canonical command path
 ```bash
-oma agent spawn <agent-type> "<task>" <session-id> -w <workspace>
-oma verify <agent-type> --workspace <workspace> --json
+oma agent spawn <agent-type> <prompt-file> <session-id> --task-id <task.id> -w <workspace>
+oma verify agent <agent-type> --workspace <workspace> --json
 ```
 
 When native runtime dispatch is available, prefer the runtime-specific native path listed in this skill before falling back to `oma agent spawn`.
@@ -109,7 +109,7 @@ When native runtime dispatch is available, prefer the runtime-specific native pa
 |-------|-----------------|
 | `LOCAL_FS` | Session, task-board, progress, result, config files |
 | `PROCESS` | Agent CLI processes and verify scripts |
-| `MEMORY` | Session state and clarification debt |
+| `MEMORY` | Session state and unresolved decisions |
 | `CODEBASE` | Workspaces owned by spawned agents |
 
 ### Preconditions
@@ -125,30 +125,28 @@ When native runtime dispatch is available, prefer the runtime-specific native pa
 1. Orchestrate per-agent dispatch from the project configuration before spawning any agent.
 2. If `target_vendor === current_runtime_vendor` and the runtime has a verified native path, use native dispatch.
 3. Otherwise fall back to `oma agent spawn`.
-4. Never exceed the configured parallelism or retry limits.
-5. Keep session state, task-board state, progress files, and result files aligned throughout the run.
-6. Domain gating must be soft: prefer a narrower `exposed_skill_set`, but fall back to flat exposure when classification confidence is low rather than starving a task of a required specialist.
+4. Never exceed configured parallelism or the aggregate recovery budget. Ordinary retries and exploration hypotheses both consume it.
+5. Keep session state, task-board state, progress files, claims, and receipts aligned. Use the plan task ID on every spawn and native begin/finish path.
+6. Select references by task needs and confidence. Do not expand to all skills solely because one skill matches, or assume task-board metadata enforces runtime exposure.
 
 Current native executor paths:
 - Claude Code: Agent tool with `.claude/agents/{agent}.md` definitions (multiple Agent tool calls in one message run in parallel; results return synchronously — no polling)
 - OpenCode: native `task` tool with `subagent_type: {agent-id}`; do not use `oma agent spawn` for same-session OpenCode work because it will not appear as a native child task
-- Codex CLI: `codex exec "@agent ..."` using `.codex/agents/*.toml`
-- Gemini CLI: `gemini -p "@agent ..."` using `.gemini/agents/*.md`
+- Codex: use the current session's exposed native subagent tool with the resolved custom role from `.codex/agents/*.toml` when supported; otherwise use `oma agent spawn`.
+- Gemini: use the current session's exposed native role-subagent tool with the resolved role when supported; otherwise use `oma agent spawn`.
 
-Vendor-specific execution protocols are injected automatically for fallback CLI runs.
+`codex exec` and `gemini -p` start external CLI sessions. An `@agent` string in a prompt does not establish native dispatch or apply a custom-role contract.
 
 ### Configuration
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | MAX_PARALLEL | 3 | Max concurrent subagents |
-| MAX_RETRIES | 2 | Retry attempts per failed task |
+| MAX_RECOVERY_ATTEMPTS | 3 | Total retries and exploration hypotheses per task, including the original attempt |
 | POLL_INTERVAL | 30s | Status check interval |
-| MAX_TURNS (impl) | 20 | Turn limit for backend/frontend/mobile |
-| MAX_TURNS (review) | 15 | Turn limit for qa/debug |
-| MAX_TURNS (plan) | 10 | Turn limit for pm |
+| Turn guidance | role-specific | Checkpoint/resume signal, not a hard stop or approval boundary |
 
-These are skill-level defaults applied by the orchestrating agent; they are not read from `config/cli-config.yaml` (which carries only vendor CLI and execution settings such as `results_dir` and `timeout`).
+These are workflow defaults. Resolve model/vendor, parallelism, and budget settings from project configuration. `config/cli-config.yaml` supplies the vendor transport registry; it does not select the active vendor or override runtime execution settings.
 
 ### Memory Configuration
 
@@ -169,25 +167,22 @@ Memory provider and tool names are configurable via `.agents/mcp.json` (not the 
 
 ### Workflow Phases
 
-**PHASE 1 - Plan**: Analyze request -> decompose tasks -> generate session ID
-**PHASE 1.5 - Domain gate**: For each task, intersect `Intent signature` matches across installed skills to derive `exposed_skill_set`. Record `exposure_fallback: true` when the intersection is too small to be useful and the flat library is used instead.
-**PHASE 2 - Setup**: Use memory write tool to create `orchestrator-session.md` + `task-board.md` (include `exposed_skill_set` per task)
-**PHASE 3 - Execute**: Spawn agents by priority tier (never exceed MAX_PARALLEL); inject only `exposed_skill_set` into each subagent's available specialist list
+**PHASE 1 - Plan**: Reuse the current valid plan or decompose the request; preserve injected session/task/run IDs.
+**PHASE 1.5 - References**: Select task references as described in Entry; record uncertainty and expansion reasons without assuming runtime enforcement.
+**PHASE 2 - Setup**: Create session/task-board artifacts with the current IDs and selected references.
+**PHASE 3 - Execute**: Dispatch ready tasks within MAX_PARALLEL using supported native or fallback context controls.
 **PHASE 4 - Monitor**: Poll every POLL_INTERVAL; handle completed/failed/crashed agents
-**PHASE 4.5 - Verify**: Run mechanical checks for every completed agent; run `oma verify {agent-type}` only for `backend`, `frontend`, `mobile`, `qa`, `debug`, and `pm`; then run QA cross-review for every completed implementation
-**PHASE 5 - Collect**: Read all `result-{agent}-{sessionId}.md`, compile summary, cleanup progress files
-
-See `resources/subagent-prompt-template.md` for prompt construction.
-See `resources/memory-schema.md` for memory file formats.
+**PHASE 4.5 - Verify**: Run mechanical checks for every completed agent; run `oma verify agent {agent-type}` only for `backend`, `frontend`, `mobile`, `qa`, `debug`, and `pm`; then run QA cross-review for every completed implementation
+**PHASE 5 - Collect**: Read claims and run-scoped reports for plan tasks whose checks passed; compile summary without deleting evidence.
 
 ### Memory File Ownership
 
 | File | Owner | Others |
 |------|-------|--------|
-| `orchestrator-session.md` | orchestrator | read-only |
-| `task-board.md` | orchestrator | read-only |
-| `progress-{agent}[-{sessionId}].md` | that agent | orchestrator reads |
-| `result-{agent}[-{sessionId}].md` | that agent | orchestrator reads |
+| `orchestrator-session-{sessionId}.md` | orchestrator | read-only |
+| `task-board-{sessionId}.md` | orchestrator | read-only |
+| `progress-{agentId}-{taskId}-{runId}-{sessionId}.md` | that run | orchestrator reads |
+| `result-{agentId}-{taskId}-{runId}-{sessionId}.md` | that run | orchestrator reads |
 
 ### Agent-to-Agent Review Loop (PHASE 4.5)
 
@@ -200,7 +195,7 @@ Agent completes work
     ↓
 [1] Mechanical Self-Check: lint, type-check, tests, diff scope
     ↓
-[2] Verify: For supported types, run `oma verify {agent-type} --workspace {workspace}`
+[2] Verify: For supported types, run `oma verify agent {agent-type} --workspace {workspace}`
     Unsupported (`db`, `refactor`, `architecture`, `tf-infra`, `docs`) → record SKIP and continue
     ↓ FAIL → Agent receives feedback, fixes, back to [1]
     ↓ PASS
@@ -226,7 +221,7 @@ Reason: Self-evaluation bias causes agents to consistently overrate their own ou
 
 **[2] Automated Verify**:
 ```bash
-oma verify {agent-type} --workspace {workspace} --json
+oma verify agent {agent-type} --workspace {workspace} --json
 ```
 - Run only for `backend`, `frontend`, `mobile`, `qa`, `debug`, and `pm`.
 - For `db`, `refactor`, `architecture`, `tf-infra`, and `docs`, record that automated verify is unsupported and continue to QA cross-review after the mechanical checks.
@@ -247,7 +242,7 @@ oma verify {agent-type} --workspace {workspace} --json
 |---------|-----|-------------|
 | Self-check + fix cycles | 3 | Escalate to cross-review regardless |
 | Cross-review rejections | 2 | Report to user with review history |
-| Total loop iterations | 5 | Force-complete with quality warning |
+| Total loop iterations | 5 | Stop recovery; preserve failed checks and return `partial` or `failed` |
 
 ### Review Feedback Format
 
@@ -263,54 +258,33 @@ When feeding review results back to the implementation agent:
 ```
 
 This replaces single-pass verification. Most "nitpicking" should happen agent-to-agent.
-Human review is reserved for final approval, not catching lint errors.
+Resolve relevant automated checks before handoff. Ask for approval only when the next action is outside existing authorization.
 
-### Retry Logic (after review loop exhaustion)
+### Recovery Budget (after review loop exhaustion)
 
-Before starting any retry, check the termination conditions (OR, whichever fires first wins):
-1. **Retry cap**: retry count for this agent has reached MAX_RETRIES — do not start another cycle.
-2. **Session cost cap**: if a quota cap is configured (`loadQuotaCap()` from `cli/io/session-cost.ts`; no cap → skip), call `checkCap(sessionId, cap)`. On `exceeded === true`, save the agent's partial results, report early termination due to quota, and do not spawn the next retry or any remaining agents in the tier.
+Maintain one budget per workflow lineage and logical goal: `attempts_used`, `attempts_remaining`, and any
+configured cost cap. The original attempt, each ordinary retry, and each
+exploration hypothesis consume one attempt. Before starting recovery, reserve
+the complete next action; do not exceed the budget or start an incomplete
+exploration round.
 
-If neither condition fires:
-- 1st retry: Re-spawn agent with full review history as context
-- 2nd retry: Re-spawn with "Try a different approach" + review history
-- After MAX_RETRIES exhausted (cost cap not exceeded): activate the **Exploration Loop** (see `orchestrate.md` Step 5): generate 2-3 alternative hypotheses, spawn the same agent type with different hypothesis prompts in parallel separate workspaces, score with Quality Score when available, keep the highest-scoring approach, and record all experiments in the Experiment Ledger.
-- Final failure: Report to user with complete review trail, ask whether to continue or abort
+Use the plan's stable `lineage_id` and task `goal_id` from `../_shared/runtime/result-contract.md`. New task/run/session IDs do not reset that budget. Freeze the full JSON plan at first dispatch; reject recursive planning/review tasks and post-dispatch plan revisions. A contract change requires an explicitly separated new session and lineage.
 
-### Clarification Debt (CD) Monitoring
+Classify failures before retrying: `PRODUCT_FAILURE` follows the remaining product recovery budget; `WORKFLOW_EVIDENCE_FAILURE` means current product checks passed but completion claims or bindings failed. Automatic resume stops evidence-only replay. Allow at most one metadata-only repair under the existing task and frozen plan, consuming the same budget, then stop with a partial handoff if unresolved. Do not create PM tasks, rerun product planning, or import another workflow's plan-review loop for evidence failures.
 
-Track user corrections during session execution. See `../_shared/core/session-metrics.md` for full protocol.
+- First remaining attempt: re-spawn with review history.
+- Later attempts: choose either one different retry or a 2–3 hypothesis round
+  only if enough attempts and cost remain.
+- On cap exhaustion, preserve all checks, review findings, and unresolved work.
+  The task is `partial` or `failed`, never `completed`.
 
-### Event Classification
-When user sends feedback during session:
-- **clarify** (+10): User answering agent's question
-- **correct** (+25): User correcting agent's misunderstanding
-- **redo** (+40): User rejecting work, requesting restart
+### Session evidence
 
-### Threshold Actions
-| CD Score | Action |
-|----------|--------|
-| CD >= 50 | **RCA Required**: QA agent must add entry to `lessons-learned.md` |
-| CD >= 80 | **Session Pause**: Request user to re-specify requirements |
-| `redo` >= 2 | **Scope Lock**: Request explicit allowlist confirmation before continuing |
-
-### Recording
-After each user correction event:
-```
-[EDIT]("session-metrics.md", append event to Events table)
-```
-
-At session end, if CD >= 50:
-1. Include CD summary in final report
-2. Trigger QA agent RCA generation
-3. Update `lessons-learned.md` with prevention measures
-
-
+For material corrections or review findings, retain the cause, impact, and evidence in existing task artifacts. Use `../_shared/core/session-metrics.md` when a retrospective or separate session summary is useful. Do not score clarification questions or require an RCA based on counters. Resolve the affected work and ask only for a material missing decision.
 
 ## References
 - Prompt template: `resources/subagent-prompt-template.md`
 - Memory schema: `resources/memory-schema.md`
-- Config: `config/cli-config.yaml`
 - Scripts: `scripts/spawn-agent.sh`, `scripts/parallel-run.sh`, `scripts/verify.sh`
 - Task templates: `templates/`
 - Skill-to-agent mapping: `../_shared/core/skill-routing.md`
@@ -318,7 +292,8 @@ At session end, if CD >= 50:
 - Session metrics: `../_shared/core/session-metrics.md`
 - API contract template (SSOT): `../_shared/core/api-contracts/template.md`; read generated contracts from `.agents/results/api-contracts/` (run artifact) or `docs/plans/contracts/` (durable spec)
 - Context loading: `../_shared/core/context-loading.md`
-- Difficulty guide: `../_shared/core/difficulty-guide.md`
+- Task decomposition: `../_shared/core/difficulty-guide.md` (unresolved scope or dependencies)
 - Clarification protocol: `../_shared/core/clarification-protocol.md`
 - Context budget: `../_shared/core/context-budget.md`
-- Lessons learned: `../_shared/core/lessons-learned.md`
+- Code intelligence: `../_shared/core/code-intelligence.md`
+- Runtime lessons: `../_shared/core/lessons-learned.md` (recurring failure or requested retrospective)

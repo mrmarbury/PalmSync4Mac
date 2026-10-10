@@ -26,13 +26,16 @@ Default base path: `.agents/state/memories`
 
 ```
 {memoryConfig.basePath}/
-  orchestrator-session.md              # Session metadata (orchestrator only)
-  task-board.md                        # Master task list (orchestrator writes, agents read)
-  progress-{agent-id}-{sessionId}.md  # Per-agent progress log (owning agent only)
-  result-{agent-id}-{sessionId}.md    # Per-agent final result (owning agent only)
+  orchestrator-session-{sessionId}.md                 # Session metadata
+  task-board-{sessionId}.md                            # Master task list
+  progress-{agentId}-{taskId}-{runId}-{sessionId}.md   # Per-run progress log
+  result-{agentId}-{taskId}-{runId}-{sessionId}.md     # Per-run final report
 ```
 
-> **Path rule**: All files MUST be at the project root memory path. In monorepos, never write to a subdirectory's memory path. The session ID suffix prevents conflicts between concurrent sessions.
+> **Path rule**: Resolve paths from the project-root memory base, then isolate
+> every artifact by session, task, and run. In monorepos, never choose a
+> subproject memory root. The injected claim path and agent-run receipt keep
+> their structured contract and are not replaced by this report layout.
 
 ## orchestrator-session.md
 
@@ -68,7 +71,11 @@ Created by the orchestrator at session start. Updated throughout execution.
 
 Master task list created by the orchestrator. Subagents read this to understand their assignment but never write to it.
 
-`Exposed Skills` is the task's `exposed_skill_set` from the domain gate (PHASE 1.5 in `SKILL.md`): the specialist skills injected into the subagent's prompt. `Exposure Fallback` is `true` when classification confidence was too low and the full installed skill library was exposed instead.
+`Selected References` and `Selection Reason` are coordinator notes from PHASE
+1.5 in `SKILL.md`. They explain the task's relevant domain resources and any
+uncertainty. The launcher does not enforce these Markdown fields; supply
+references through the dispatch path's supported context mechanism. A single
+confidently matched skill is sufficient.
 
 ```markdown
 # Task Board
@@ -81,8 +88,8 @@ Master task list created by the orchestrator. Subagents read this to understand 
 - **Status**: pending | in_progress | completed | failed | blocked
 - **Priority**: 1
 - **Dependencies**: none
-- **Exposed Skills**: oma-backend, oma-db
-- **Exposure Fallback**: false
+- **Selected References**: oma-backend, oma-db
+- **Selection Reason**: API implementation changes the existing data-access boundary
 - **Description**: Implement user registration and login with JWT tokens
 - **Acceptance Criteria**:
   - POST /api/auth/register with email + password
@@ -97,8 +104,8 @@ Master task list created by the orchestrator. Subagents read this to understand 
 - **Status**: pending
 - **Priority**: 1
 - **Dependencies**: none
-- **Exposed Skills**: oma-frontend, oma-design
-- **Exposure Fallback**: false
+- **Selected References**: oma-frontend, oma-design
+- **Selection Reason**: Form implementation also requires the project's visual system
 - **Description**: Build login and registration forms with validation
 - **Acceptance Criteria**:
   - Login form with email + password
@@ -113,8 +120,8 @@ Master task list created by the orchestrator. Subagents read this to understand 
 - **Status**: blocked
 - **Priority**: 2
 - **Dependencies**: task-1, task-2
-- **Exposed Skills**: (all installed skills)
-- **Exposure Fallback**: true
+- **Selected References**: oma-qa
+- **Selection Reason**: Quality review matches one domain; load implementation references only when needed
 - **Description**: Review all deliverables for security and performance
 - **Acceptance Criteria**:
   - OWASP Top 10 security check
@@ -122,7 +129,7 @@ Master task list created by the orchestrator. Subagents read this to understand 
   - No critical or high severity issues
 ```
 
-## progress-{agent-id}-{sessionId}.md
+## progress-{agentId}-{taskId}-{runId}-{sessionId}.md
 
 Each agent creates this file at start and appends entries every 3-5 turns. Only the owning agent writes to this file.
 
@@ -154,7 +161,7 @@ Each agent creates this file at start and appends entries every 3-5 turns. Only 
 - **Summary**: JWT auth API fully implemented with tests
 ```
 
-## result-{agent-id}-{sessionId}.md
+## result-{agentId}-{taskId}-{runId}-{sessionId}.md
 
 Each agent creates this file upon completion (success or failure). Only the owning agent writes to this file.
 

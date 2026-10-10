@@ -2,6 +2,12 @@
 
 This resource specifies HOW the generated HTML file behaves and is validated. For content requirements, refer to the sibling `document-structure.md` file.
 
+> Pages made by `oma explain render` meet sections 1–5 by construction (inline CSS and
+> script under a `default-src 'none'` policy, `<pre>` code, light/dark themes, shuffled quiz
+> with per-option feedback). For those pages this contract reduces to section 6
+> (`oma explain validate`) and section 7 (secret gates). Sections 1–5 remain the rules for
+> hand-written HTML.
+
 ## 1. Self-contained Rule
 The generated HTML file MUST make ZERO external resource loads.
 - No CDN scripts or stylesheets.
@@ -33,7 +39,7 @@ font-family: Pretendard, 'Pretendard Variable', 'Apple SD Gothic Neo', 'Noto San
 - **Diagram Visuals:** Every diagram/visual MUST be wrapped in a `<div class="diagram-wrapper">` with `overflow-x: auto; max-width: 100%;` and use SVG `viewBox` / CSS variables (`var(...)`) to prevent mobile clipping and guarantee seamless Dark/Light theme switching.
 - **Contrast:** WCAG AA contrast in BOTH light and dark themes.
 - **Dark Mode:** Must support `prefers-color-scheme: dark` as well as explicit manual theme toggling via data attributes.
-- **Motion:** Animations are optional and must be subtle. `prefers-reduced-motion` MUST be respected.
+- **Motion:** Animations are optional and must be subtle.
 - **Focus States:** Visible focus states are required on all interactive elements.
 
 ## 5. Quiz JS Specification
@@ -47,10 +53,10 @@ font-family: Pretendard, 'Pretendard Variable', 'Apple SD Gothic Neo', 'Noto San
 - The entire quiz must be fully keyboard-navigable.
 
 ## 6. Validation Checklist (Post-generation)
-Execute the following grep-based checks on the generated HTML. 
+Use `oma explain validate <file>` as the primary post-generation check. Review its reported content and structure failures. The grep commands below are supplemental spot checks; a zero-match result does not replace the validator or review of actual secret values in code excerpts.
 Loop: fix and re-validate at most **3 iterations**, then STOP and surface the failing items to the user.
 
-**Known false positives — do not "fix" example code.** A hit located inside a `<pre>` block that merely *quotes* a matching pattern as illustrative text (a commented-out `@import` in a "what not to do" snippet, an example `api_key` in a config walkthrough) is not a live resource load or a real secret. Log such hits as reviewed false positives in the provenance footer instead of mangling the example, and do not count them against the 3-iteration budget. Live `<head>` / `<script src>` references and actual secret values must still be fixed or gated. (Related: this contract's own §3 comment legitimately contains the literal `@font-face` — the §6 greps do not match it, and a stricter v2 validator must not flag it either.)
+**Known false positives — do not "fix" example code.** A hit located inside a `<pre>` block that merely *quotes* a matching pattern as illustrative text (a commented-out `@import` in a "what not to do" snippet, an example `api_key` in a config walkthrough) is not a live resource load or a real secret. Log such hits as reviewed false positives in the provenance footer instead of mangling the example, and do not count them against the 3-iteration budget. Live `<head>` / `<script src>` references and actual secret values must still be fixed or gated. Do not treat every `<pre>` or `<code>` value as a false positive: actual credentials are still secrets when quoted.
 
 - **No external resource loads** (zero matches required):
   ```bash
@@ -80,7 +86,7 @@ Secrets must be gated at two stages:
 2. **Post-generation:** Scan the final HTML (as background prose may quote unchanged files, the diff scan alone is insufficient).
 
 ### Secret Patterns
-*Note: the excluded-file globs below mirror `EXCLUDED_FILE_PATTERNS` in `cli/commands/docs/sync-propose.ts` — when those globs diverge, that file wins. The content-value regex is defined HERE (no CLI implementation of a content-level secret regex exists yet; a deterministic scanner ships with `oma explain validate` in v2).*
+*Note: the excluded-file globs below mirror `EXCLUDED_FILE_PATTERNS` in `cli/commands/docs/sync-propose.ts` — when those globs diverge, that file wins. Content checks are implemented in `cli/commands/explain/validate.ts` and include assigned secret-like values and vendor token patterns. The minimal regex below is a supplemental diff check; the current CLI implementation defines the HTML validation behavior.*
 
 Mirroring a MINIMAL pattern set for secret-like literal values (API keys, tokens, private keys, passwords, connection strings):
 - **Excluded Files:** `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa`, `id_rsa*`

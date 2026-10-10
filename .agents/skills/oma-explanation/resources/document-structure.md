@@ -1,8 +1,14 @@
-# Document Structure — oma-explainer
+# Document Structure — oma-explanation
 
 > The structural and rhetorical contract for all generated HTML explainer documents.
 > Read this document to understand WHAT content is generated and in what tone.
 > For HOW the HTML is styled and behaves, see `html-contract.md`.
+
+> **Authoring path**: write a draft and render it with `oma explain render` (see
+> `draft-format.md`). The four sections below become panels in the same order; the renderer
+> supplies the page shell, so the TOC and diagram-markup rules in sections 1 and 6 apply
+> literally only to the hand-written HTML fallback. Topic-mode pages follow `draft-format.md`
+> and are not bound to the four sections.
 
 ---
 
@@ -76,6 +82,7 @@ Choose from the following conceptual families:
 - **Theme-Aware Colors**: All diagram elements (borders, text, arrows, node backgrounds) MUST use CSS variables (e.g. `var(--border-color)`, `var(--text-primary)`) or `currentColor` rather than hardcoded hex colors, ensuring seamless adaptation to Dark/Light theme toggling.
 - **Accessibility (a11y)**: Diagrams must include `role="img"` and a descriptive `aria-label` or `<title>` element summarizing the diagram flow for assistive technologies.
 - Use semantic HTML lists (`<ul>`, `<ol>`, `<dl>`) for textual lists.
+- **archify sidecar (optional)**: an interactive archify diagram is a *separate* `.archify.html` file linked by a plain `<a href>` — it is never embedded (no `<iframe>` / `<object>` / `<script src>`), and the inline SVG/CSS diagram above stays in place so the explainer remains complete offline. See `_shared/conditional/diagram-engine.md`.
 
 ---
 
