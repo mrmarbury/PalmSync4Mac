@@ -6,7 +6,7 @@ When running as a Grok subagent or custom agent, follow this protocol for shared
 
 Use file-based I/O for coordination. Coordination/state files (task-board, progress,
 result hand-offs) MUST be written to the **project-root memory store** `.agents/state/memories/`
-— that is the only location the orchestrator (`oma agent:status`), `oma verify`, and the
+— that is the only location the orchestrator (`oma agent status`), `oma verify`, and the
 memory/retro tooling read. Writing them anywhere else (e.g. `.agents/results/`) leaves them
 orphaned and your run is reported as `crashed`. Human-facing deliverables (plans, bug
 reports, design docs) belong under `.agents/results/` instead.

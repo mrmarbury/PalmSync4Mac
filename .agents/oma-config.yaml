@@ -283,3 +283,14 @@ scm:
     - "*.template"
 vendors:
   - opencode
+
+# Added by oma migration 022 — moved from .agents/skills/*/config/*.yaml, which `oma update` overwrites. Edit freely.
+video:
+  providers:
+    capture:
+      order:
+        - playwright-web
+        - cap
+hwp:
+  version:
+    pinned: 4.1.0
