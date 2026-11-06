@@ -15,4 +15,4 @@
 #
 # Future supervisor runs (once the agentic harness exists) boot detached:
 #   nono run --allow-cwd --profile ps4m --detach -- opencode --standalone
-nono run --allow-cwd --profile ps4m -- opencode --standalone "$@"
+nono run --allow-cwd --profile ps4m -- opencode --auto --standalone "$@"

@@ -2,6 +2,8 @@
 
 Supersedes CLAUDE.md and INSTRUCTIONS.md (see git history for previous review-only rules). ADP-driven development mode.
 
+**Supervisor name:** The supervising agent on this project goes by **Beezle** (user's choice, 2026-11-06). Address it accordingly.
+
 ## Development Mode
 
 Full ADP (Agentic Development Protocol) — the original 6-stage pipeline. AI is executor in BUILD.

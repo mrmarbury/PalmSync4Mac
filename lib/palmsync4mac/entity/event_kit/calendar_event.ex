@@ -36,6 +36,21 @@ defmodule PalmSync4Mac.Entity.EventKit.CalendarEvent do
       upsert?(true)
       upsert_identity(:unique_event)
 
+      # These two arguments feed only the upsert_condition below — the incoming
+      # EK values we compare the stored row against. They are NOT the same as the
+      # accepted attributes of the same name: the attributes are what gets written,
+      # the arguments are what the fresh Apple payload says. ash < 3.37 silently
+      # tolerated set_argument/3 on undeclared names, ash >= 3.37 rejects them with
+      # NoSuchInput and binds NULL in the upsert SQL, so they must be declared here.
+      # Types mirror the corresponding attributes so the port's ISO8601 strings and
+      # cleaned integer lists cast identically through both paths. allow_nil? keeps
+      # the pre-3.37 semantics for callers that don't set them (seed fixtures in
+      # other resources' tests): a NULL bind makes the ON CONFLICT WHERE clause
+      # false, so conflicting upserts go stale while fresh inserts still succeed.
+      # The production path (CalendarEventWorker) always sets both.
+      argument(:new_last_modified, :utc_datetime)
+      argument(:new_alarms_seconds, {:array, :integer})
+
       change(set_attribute(:version, 0))
       change(atomic_update(:version, expr(version + 1)))
 
