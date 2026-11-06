@@ -113,7 +113,7 @@ Rocco (Hermes Agent on Discord) is the project memory and vault interface. The v
 - These feed the "Common pitfalls" section of contract sheets
 
 **After VERIFY/INTEGRATE (cycle complete):**
-- HARD GATE: do NOT send any writeback on cycle completion alone. Send the writeback to Rocco ONLY when BOTH conditions hold: (1) the PR/branch has been finally merged to main, AND (2) the user explicitly tells me to send it (their signoff). Never send it preemptively — awaiting user review is not a trigger.
+- **Writeback trigger: merge.** Send the writeback to Rocco as soon as the PR/branch has been finally merged to main — no further signoff required (user decision 2026-11-06: the explicit "send it" confirmation is permanently waived). Still never preemptive: awaiting user review or an unmerged PR is not a trigger.
 - Writeback via Discord: `[palm_sync_4_mac] WRITEBACK — <summary>`
 - Include: what was done, key decisions, learnings, test results, open questions
 - Rocco ingests: updates LEARNINGS.md, Decisions.md, ADP Transition.md, wiki pages
