@@ -1,5 +1,13 @@
 import Config
 
+# Required by ash >= 3.37 or every resource fails to compile
+# (Ash.Resource.Transformers.RequireStringLengthCountConfig).
+# :codepoints counts unicode codepoints, matching how the SQLite data layer
+# counts string length, so min_length/max_length/string_length validation is
+# consistent between Elixir and SQL and max_length bounds the stored value size.
+# Individual attributes can still override via the :length_count constraint.
+config :ash, default_string_length_count: :codepoints
+
 config :palm_sync_4_mac,
   ash_domains: [
     PalmSync4Mac.Entity.EventKit,
