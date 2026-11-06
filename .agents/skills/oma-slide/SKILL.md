@@ -281,7 +281,7 @@ For Canva export/import pipeline, see `resources/canva-integration.md`.
 For bbox visual editor usage, see `resources/generation-protocol.md` §Phase 5c — Visual Edit.
 For error recovery, see §Failure and recovery above.
 
-Vendor-specific execution protocols are injected automatically by `oma agent:spawn`.
+Vendor-specific execution protocols are injected automatically by `oma agent spawn`.
 Source files live under `../_shared/runtime/execution-protocols/{vendor}.md`.
 
 - Stage rules + embed instructions: `resources/fixed-stage.md`
