@@ -184,6 +184,9 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoOnboardingTest do
       # not fork the DB identity: one row, one join row.
       assert [_only_row] = palm_user_rows()
       assert calendar_event.id
+
+      {:ok, join_rows} = Ash.read(EkCalendarDatebookSyncStatus)
+      assert length(join_rows) == 1
     end
   end
 
@@ -313,6 +316,64 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoOnboardingTest do
       assert join_rows_after == []
     end
 
+    test "RE_ONBOARD reports :join_row_reset_incomplete when the join-row reset fails" do
+      start_device()
+
+      {:ok, calendar_event} =
+        CalendarEvent
+        |> Ash.Changeset.for_create(:create_or_update, %{
+          source: "apple",
+          title: "Re-Onboard Reset-Fail Event",
+          start_date: DateTime.utc_now(),
+          end_date: DateTime.add(DateTime.utc_now(), 3600, :second),
+          last_modified: DateTime.utc_now(),
+          calendar_name: "Calendar",
+          apple_event_id: "onboarding-re-onboard-2"
+        })
+        |> Ash.create()
+
+      # The wiped-known-device setup: a row for the explicit name and a
+      # join row that references a Palm record id the wiped device no
+      # longer has.
+      {:ok, known_row} =
+        PalmUserRow
+        |> Ash.Changeset.for_create(:create_or_update, %{
+          username: "My TX",
+          password_length: 0,
+          password: "",
+          user_id: 7,
+          viewer_id: 0,
+          last_sync_pc: 0,
+          last_sync_date: DateTime.utc_now() |> DateTime.to_unix()
+        })
+        |> Ash.create()
+
+      EkCalendarDatebookSyncStatus
+      |> Ash.Changeset.for_create(:create_or_update, %{
+        palm_user_id: known_row.id,
+        calendar_event_id: calendar_event.id,
+        rec_id: 123,
+        last_synced_version: calendar_event.version,
+        last_sync_success: true
+      })
+      |> Ash.create()
+
+      # The device accepts the identity write, but the join-row delete
+      # fails. The reset must report the failure: a wiped device whose
+      # reset silently half-completed would never receive the events whose
+      # join rows survived — the exact data loss RE_ONBOARD exists to
+      # prevent. The operator can then retry instead of trusting a broken
+      # sync.
+      patch(Ash, :destroy, fn _record -> {:error, :forced_destroy_failure} end)
+
+      assert {:error, :join_row_reset_incomplete} = UserInfoWorker.pre_sync("My TX")
+
+      # The stubborn join row is still there and still visible in the
+      # error log, so the retry has a concrete thing to fix.
+      {:ok, join_rows} = Ash.read(EkCalendarDatebookSyncStatus)
+      assert length(join_rows) == 1
+    end
+
     test "KNOWN with user_id mismatch logs a warning and keeps the row identity" do
       start_device(@named_device)
 
@@ -352,6 +413,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoOnboardingTest do
       end)
 
       assert {:error, :username_invalid} = UserInfoWorker.pre_sync("")
+      assert {:error, :username_invalid} = UserInfoWorker.pre_sync(" ")
       assert {:error, :username_invalid} = UserInfoWorker.pre_sync(String.duplicate("x", 41))
       assert {:error, :username_invalid} = UserInfoWorker.pre_sync("naïve")
       assert {:error, :username_invalid} = UserInfoWorker.pre_sync("bad\x01name")
@@ -384,7 +446,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoOnboardingTest do
 
       # Our row holds the provisioned identity; the device reports a foreign
       # user_id (mismatch case). post_sync updates only sync dates.
-      {:ok, row} =
+      {:ok, _row} =
         PalmUserRow
         |> Ash.Changeset.for_create(:create_or_update, %{
           username: "Palm TX",
@@ -402,11 +464,13 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoOnboardingTest do
       assert :ok = UserInfoWorker.post_sync()
 
       assert [%PalmUserRow{username: "Palm TX", user_id: 7}] = palm_user_rows()
-      assert row.successful_sync_date == 0 || row.successful_sync_date >= 0
 
-      # The session updated the sync date bookkeeping only.
+      # The session updated the sync date bookkeeping only: last_sync_date
+      # advanced and successful_sync_date went from the seeded 0 to a real
+      # timestamp, while username and user_id stayed exactly as provisioned.
       assert [%PalmUserRow{} = updated] = palm_user_rows()
       assert updated.last_sync_date >= 1_000
+      assert updated.successful_sync_date > 0
     end
   end
 end

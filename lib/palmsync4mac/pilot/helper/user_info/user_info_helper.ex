@@ -71,15 +71,17 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
   Validates an explicit username argument before it is provisioned onto a device.
 
   The Palm wire limit is 40 bytes and the device speaks ISO-8859-1; anything
-  outside printable ASCII, an empty string, or a name longer than 40 bytes is
-  rejected with `{:error, :username_invalid}` so the caller aborts before any
-  row is created or any byte reaches the device.
+  outside printable ASCII, a blank or whitespace-only string (which would be
+  read back as nameless on the next sync and fork the device into a second,
+  randomly-named identity), or a name longer than 40 bytes is rejected with
+  `{:error, :username_invalid}` so the caller aborts before any row is
+  created or any byte reaches the device.
   """
   def validate_username(username) when is_binary(username) do
     length_ok? = byte_size(username) in 1..@max_username_length
     printable_ascii? = Enum.all?(for(<<c <- username>>, do: c in @printable_ascii_range))
 
-    if length_ok? and printable_ascii? do
+    if length_ok? and printable_ascii? and not blank?(username) do
       :ok
     else
       {:error, :username_invalid}
@@ -307,6 +309,13 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
   device's calendar stays empty. Resetting the joins makes the next sync a
   full, clean re-push. This runs only after the device accepted the
   identity write, so a failed write leaves all state untouched.
+
+  Every row is attempted even when some deletes fail (a half-aborted pass
+  would leave MORE stale rows behind), but the result reports an
+  `{:error, :join_row_reset_incomplete}` as soon as any row survived: the
+  wiped device would silently never receive the events those rows stand
+  for — the exact data loss RE_ONBOARD exists to prevent — so the operator
+  must retry instead of trusting a broken reset.
   """
   def reset_sync_status_rows(palm_user_id) do
     EkCalendarDatebookSyncStatus
@@ -319,9 +328,23 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
             "ek_calendar_datebook_sync_status join rows so the device gets a full clean re-push"
         )
 
-        Enum.each(rows, &destroy_sync_status_row/1)
+        rows
+        |> Enum.map(&destroy_sync_status_row/1)
+        |> Enum.filter(&match?({:error, _}, &1))
+        |> case do
+          [] ->
+            :ok
 
-        :ok
+          failures ->
+            Logger.error(
+              "Re-onboarding palm_user #{palm_user_id}: join row reset INCOMPLETE — " <>
+                "#{length(failures)} of #{length(rows)} rows survived. The device accepted " <>
+                "the identity but its sync bookkeeping is stale; retry the re-onboard until " <>
+                "the reset completes cleanly."
+            )
+
+            {:error, :join_row_reset_incomplete}
+        end
 
       {:error, reason} ->
         Logger.error(
@@ -333,9 +356,10 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
     end
   end
 
-  # A single join-row delete during a re-onboarding reset. Failures are logged
-  # rather than raised so one stubborn row cannot abort the reset midway and
-  # leave a half-reset bookkeeping table behind.
+  # A single join-row delete during a re-onboarding reset. The result is
+  # reported to the caller so a partially-failed reset surfaces as an
+  # error; the reset itself still attempts every row, because aborting at
+  # the first failure would leave a half-reset bookkeeping table behind.
   defp destroy_sync_status_row(%EkCalendarDatebookSyncStatus{} = row) do
     case Ash.destroy(row) do
       :ok ->
@@ -345,28 +369,35 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
         Logger.error(
           "Failed to delete join row #{row.id} during re-onboarding: #{inspect(reason)}"
         )
+
+        {:error, reason}
     end
   end
 
-  def update_username(%PalmSync4Mac.Comms.Pidlp.PilotUser{} = user_info, username \\ nil) do
-    user_info_name = user_info.username
+  @doc """
+  Sets the session's target username for a device, never renaming a named one.
 
-    cond do
-      not nameless?(user_info_name) ->
-        # A device that already carries a name is never renamed: Palm OS
-        # hardware silently drops username writes on established devices,
-        # and our row key must stay byte-identical to whatever the device
-        # really reports. Any explicit argument is ignored here.
-        user_info
-
-      is_binary(username) ->
-        # A nameless device being provisioned with an explicit name.
-        %{user_info | username: username}
-
-      true ->
-        # A nameless device with no explicit name falls back to a generated
-        # identity, unique-checked against existing rows.
-        %{user_info | username: generate_random_string()}
+  The name argument is mandatory and must be the exact string the caller
+  intends as the device identity (the explicit onboarding argument, or the
+  row's existing username on RE_ONBOARD). There is deliberately no
+  nameless-no-argument fallback clause: the historical one minted an
+  unchecked `generate_random_string()`, which is the pre-fix
+  duplicate-identity bug shape. The state machine generates a
+  unique-checked name first (`generate_unique_name/0`) and always passes it
+  explicitly, so a nil or non-binary argument is a caller bug that surfaces
+  as a FunctionClauseError instead of silently provisioning an identity.
+  """
+  def update_username(%PalmSync4Mac.Comms.Pidlp.PilotUser{} = user_info, username)
+      when is_binary(username) do
+    if nameless?(user_info.username) do
+      # A nameless device being provisioned with an explicit name.
+      %{user_info | username: username}
+    else
+      # A device that already carries a name is never renamed: Palm OS
+      # hardware silently drops username writes on established devices,
+      # and our row key must stay byte-identical to whatever the device
+      # really reports. The explicit argument is ignored here.
+      user_info
     end
   end
 

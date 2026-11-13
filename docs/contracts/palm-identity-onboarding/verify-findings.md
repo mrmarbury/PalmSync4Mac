@@ -1,12 +1,18 @@
 # VERIFY Findings & Pending Remediation Decision — palm-identity-onboarding
 
-Status: **awaiting engineer decision** (2026-09-18 session ended here). VERIFY phase passed all three CCR reviews (Step 6 Alignment PASS, Step 7 Safety PASS, Step 8 Regression PASS — gates independently re-run and matched). Implementation is committed as wip `3c2f74a` on `32-palm-identity-onboarding`.
+Status: **resolved 2026-11-13** — engineer (Beezle-supervised session) chose the full recommended bundle: items 1–4 + the README line applied (RED-first tests added, all green); item 5 (RE_ONBOARD breadcrumb) declined for this cycle. VERIFY phase originally passed all three CCR reviews (Step 6 Alignment PASS, Step 7 Safety PASS, Step 8 Regression PASS — gates independently re-run and matched) on 2026-09-18. Implementation is committed as wip on `42-palm-identity-onboarding`.
 
 ## Resolved by engineer decision
-- **M1 — unique index aborts on bug-era DBs**: no prod DB exists; the policy is **drop and recreate the DB** (delete dev.sqlite + wal/shm). Pending small item: one README line tying the "UNIQUE constraint failed" migration error to that procedure.
+- **M1 — unique index aborts on bug-era DBs**: no prod DB exists; the policy is **drop and recreate the DB** (delete dev.sqlite + wal/shm). ~~Pending small item: one README line tying the "UNIQUE constraint failed" migration error to that procedure.~~ **README line added 2026-11-13.**
 - Migration formatting LOW: re-verified `mix format --check-formatted` CLEAN — reviewer's claim was stale, no action.
+- **2026-11-13 full bundle applied** (see "Awaiting decision" items below, now resolved):
+  - Item 1 (MEDIUM): `reset_sync_status_rows/1` now collects destroy failures and returns `{:error, :join_row_reset_incomplete}`; worker error branch wired; contract error table updated.
+  - Item 2 (LOW): `update_username/2` nameless+nil fallback branch deleted; explicit binary name required (FunctionClauseError otherwise).
+  - Item 3 (LOW): `validate_username/1` rejects whitespace-only names; contract invariant 8 + error table updated.
+  - Item 4 (LOW): vacuous `successful_sync_date` assertion replaced with a concrete `> 0` check; join-row count asserted in the zero-write regression test.
+  - Item 5 (optional RE_ONBOARD breadcrumb): declined this cycle.
 
-## Awaiting decision (presented with full code context in session, summarized here)
+## Originally awaiting decision (presented 2026-09-18, all now applied/declined above)
 
 ### 1. MEDIUM — partial join-reset reports success (`user_info_helper.ex:311-349`)
 `reset_sync_status_rows/1` swallows individual `Ash.destroy` failures (`Enum.each(rows, &destroy_sync_status_row/1)` → always `:ok`). A partially-failed RE_ONBOARD reset reports success → sync proceeds → the wiped device silently never receives the events whose join rows survived — the exact failure RE_ONBOARD exists to prevent. The worker (`user_info_worker.ex:245-250`) already has an error branch waiting for it. Proposed fix: collect failures → `{:error, :join_row_reset_incomplete}` when any; + contract error-table row + test. ~10 lines. (Recommended.)

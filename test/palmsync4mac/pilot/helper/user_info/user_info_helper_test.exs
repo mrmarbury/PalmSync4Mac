@@ -129,6 +129,17 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelperTest do
       assert {:error, :username_invalid} = UserInfoHelper.validate_username("bad\x01name")
       assert {:error, :username_invalid} = UserInfoHelper.validate_username(123)
     end
+
+    test "whitespace-only names are rejected — they would fork the identity on the next sync" do
+      # A whitespace name passes the byte-length and printable-ASCII gates,
+      # but nameless?/1 (String.trim) counts it as blank again on the next
+      # sync, so the device would be onboarded a second time under a
+      # different random name and duplicate its row. The validation must
+      # close that gap at the entry point.
+      assert {:error, :username_invalid} = UserInfoHelper.validate_username(" ")
+      assert {:error, :username_invalid} = UserInfoHelper.validate_username("\t")
+      assert {:error, :username_invalid} = UserInfoHelper.validate_username(" \n\r\t ")
+    end
   end
 
   describe "find_palm_user/1" do
@@ -157,7 +168,15 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelperTest do
       }
 
       assert ^user_info = UserInfoHelper.update_username(user_info, "My TX")
-      assert ^user_info = UserInfoHelper.update_username(user_info, nil)
+
+      # The explicit name is mandatory: there is no nil-argument fallback
+      # clause anymore. The historical unchecked random-name branch here was
+      # the pre-fix bug shape (an identity minted without a uniqueness
+      # check), so a nil argument must be a loud programming error, not a
+      # silently accepted identity.
+      assert_raise FunctionClauseError, fn ->
+        UserInfoHelper.update_username(user_info, nil)
+      end
     end
 
     test "a nameless device takes the explicit argument as its new name" do
@@ -175,7 +194,12 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelperTest do
       assert %{username: "My TX"} = UserInfoHelper.update_username(user_info, "My TX")
     end
 
-    test "a nameless device with no argument gets a generated fallback name" do
+    test "a nameless device without an explicit name raises — no unchecked fallback identity" do
+      # The pre-fix code minted an unchecked generate_random_string() here.
+      # That path is gone: the state machine generates a unique-checked name
+      # first (generate_unique_name/0) and always passes it explicitly, so
+      # reaching update_username/2 without a name is a caller bug that must
+      # surface instead of silently provisioning a duplicate-prone identity.
       user_info = %PalmSync4Mac.Comms.Pidlp.PilotUser{
         username: "",
         password: "",
@@ -187,8 +211,9 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelperTest do
         last_sync_date: 0
       }
 
-      assert %{username: generated} = UserInfoHelper.update_username(user_info, nil)
-      assert String.match?(generated, ~r/^[a-z0-9]{5}$/)
+      assert_raise FunctionClauseError, fn ->
+        UserInfoHelper.update_username(user_info, nil)
+      end
     end
   end
 

@@ -9,7 +9,7 @@ Fix the duplicate-records bug at its root: give every Palm a stable identity in 
 - Wiped Tungsten T3 onboarded with a name → **name persists** across HotSync app reopen → first-sync adoption confirmed.
 - Established devices (TX, Tungsten C, CLIÉ UX50) **silently drop username writes** on the wire (modflags 0x3f, OpenConduit, nonzero lastSyncPC, dlpsh, pilot-install-user all failed to rename).
 - `user_id` writes **commit reliably** on every device tested (18839 → 12345 → 55332 across tools).
-- `dlp_EndOfSync` is the required session-finalization call (pi-dlp.h:783); `pi_close` only auto-sends it under clean socket state — not guaranteed (see `.agents/state/memories/result-investigate-20260913-094700.md`).
+- `dlp_EndOfSync` is the required session-finalization call (pi-dlp.h:783); `pi_close` only auto-sends it under clean socket state — not guaranteed (see `.agents/results/result-investigate-20260913-094700.md`).
 
 ## Existing code
 

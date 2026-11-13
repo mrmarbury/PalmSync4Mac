@@ -18,7 +18,7 @@ Classify each connected Palm by its device username, provision a DB identity (ro
 |---|---|---|---|
 | 1 | name ≠ blank | row exists (`username` exact byte match) | **KNOWN**: no identity writes; if `row.user_id ≠ device.user_id` → `Logger.warning` (two devices may share the name — documented gap, see backlog) |
 | 2 | name ≠ blank | no row | **ADOPT**: create row (username = device name, `user_id = next_user_id()`); write our `user_id` to device **best-effort** (warn on failure, sync continues — identity is the name) |
-| 3 | name blank | explicit `username` arg matches existing row | **RE_ONBOARD**: write name+`user_id` (row's existing id) to device first; on success reset that row's join rows (`ek_calendar_datebook_sync_status`) with a loud log; on write failure `{:error, :device_write_failed}`, no changes |
+| 3 | name blank | explicit `username` arg matches existing row | **RE_ONBOARD**: write name+`user_id` (row's existing id) to device first; on success reset that row's join rows (`ek_calendar_datebook_sync_status`) with a loud log; on write failure `{:error, :device_write_failed}`, no changes; on a partially failed reset (any join row survives) `{:error, :join_row_reset_incomplete}` — the operator retries rather than trusting a broken re-push |
 | 4 | name blank | explicit `username` arg, no row | **ONBOARD**: create row (`user_id = next_user_id()`) → write name+`user_id` to device → on write failure **delete the row** (compensating) and `{:error, :device_write_failed}` |
 | 5 | name blank | no arg | **RANDOM_FALLBACK**: generate 5-char `[a-z0-9]` name, **unique-checked against all `palm_user.username`** (regenerate until unique), then proceed as ONBOARD (row 4) |
 
@@ -42,7 +42,7 @@ Classify each connected Palm by its device username, provision a DB identity (ro
 5. A successful second sync of unchanged data produces **zero** `write_datebook_record` calls (duplication regression test).
 6. ONBOARD failure leaves no orphaned row: device write failure → row deleted.
 7. RE_ONBOARD resets join rows only after a successful device write.
-8. Explicit `username` argument is validated: 1–40 printable ASCII → else `{:error, :username_invalid}` (generated names are safe by construction).
+8. Explicit `username` argument is validated: 1–40 printable ASCII and not blank/whitespace-only (a whitespace name reads back as nameless on the next sync and forks the identity) → else `{:error, :username_invalid}` (generated names are safe by construction).
 9. `palm_user.username` is immutable after row creation (no update path touches it).
 10. After a failed `pre_sync`, `post_sync` performs zero device writes and zero DB writes in that session.
 11. `post_sync`'s upsert never changes `palm_user.username` or `palm_user.user_id` (row identity is authoritative; only sync/dates fields update).
@@ -53,9 +53,10 @@ Classify each connected Palm by its device username, provision a DB identity (ro
 | Condition | Behavior |
 |---|---|
 | `read_user_info` fails | `{:error, reason}` — abort pre_sync, no DB/device writes |
-| explicit name invalid (empty, > 40, non-ASCII, non-printable) | `{:error, :username_invalid}` — no row, no device write |
+| explicit name invalid (empty, whitespace-only, > 40, non-ASCII, non-printable) | `{:error, :username_invalid}` — no row, no device write |
 | ADOPT user_id write fails | warning log, sync continues (identity = name) |
 | ONBOARD/RE_ONBOARD device write fails | `{:error, :device_write_failed}` — onboard compensates (row deleted), re-onboard leaves everything unchanged; sync aborted |
+| RE_ONBOARD join-row reset fails partially (any row survives) | `{:error, :join_row_reset_incomplete}` — every row is attempted, failures collected; device already took the identity but sync aborts so stale bookkeeping never masquerades as a clean re-push |
 | DB create fails (e.g. unique violation race) | `{:error, reason}` — abort; no device write happened for ONBOARD (DB-first ordering) |
 | `pre_sync` failed this session | `post_sync` no-ops (no device writes, no DB writes) |
 

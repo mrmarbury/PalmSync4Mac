@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Every DLP session ends with an explicit `dlp_EndOfSync` so the device commits session state (sync status + successfulSyncDate) — instead of relying on pi_close's conditional auto-send, which only fires under clean socket state (evidence: `.agents/state/memories/result-investigate-20260913-094700.md`, pi-dlp.h:783).
+Every DLP session ends with an explicit `dlp_EndOfSync` so the device commits session state (sync status + successfulSyncDate) — instead of relying on pi_close's conditional auto-send, which only fires under clean socket state (evidence: `.agents/results/result-investigate-20260913-094700.md`, pi-dlp.h:783).
 
 ## Inputs → Outputs
 

@@ -34,6 +34,14 @@ The same applies to the dev database (`dev.sqlite`) at sync time: an error like
 `no such column: c0.alarms_seconds` when syncing means the dev database predates
 a schema change — run `mix ash_sqlite.migrate` (without `MIX_ENV=test`).
 
+If `mix ash_sqlite.migrate` instead aborts with a `UNIQUE constraint failed`
+error, the dev database predates the onboarding cycle's unique indexes on
+`palm_user.username` and `palm_user.user_id` and holds bug-era duplicates. The
+policy is the clean slate: delete the dev database files (`dev.sqlite` plus
+`dev.sqlite-wal` and `dev.sqlite-shm` if present), then
+`mix ash_sqlite.create && mix ash_sqlite.migrate`. There is no production
+database, so nothing is lost that a fresh sync cannot rebuild.
+
 ### Stale Build Cache
 
 If `mix` tasks fail with dependency version mismatches after updating deps (e.g. `ash 3.5.23 does not match ~> 3.7`), the `_build/` cache is stale. Mix reads compiled `.app` files for version info, not the lock file. Fix:
