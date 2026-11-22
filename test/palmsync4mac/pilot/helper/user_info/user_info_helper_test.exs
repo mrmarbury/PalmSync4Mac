@@ -4,9 +4,9 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelperTest do
   docs/contracts/palm-identity-onboarding/contract-user-info-onboarding.md).
 
   These target the building blocks the UserInfoWorker state machine leans
-  on: user_id provisioning (max+1, min 1), the uniqueness-checked fallback
-  name generator, nameless detection, explicit-argument validation, and the
-  exact-byte row lookup that keeps device identity stable.
+  on: user_id provisioning (max+1, min 1), nameless detection,
+  explicit-argument validation, and the exact-byte row lookup that keeps
+  device identity stable.
   """
 
   use ExUnit.Case, async: false
@@ -17,7 +17,6 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelperTest do
   alias PalmSync4Mac.Entity.Device.PalmUser
   alias PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper
   alias PalmSync4Mac.Repo
-  alias PalmSync4Mac.Utils.StringUtils
 
   import PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper
 
@@ -64,32 +63,6 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelperTest do
       assert {:ok, _row_zero} = create_row("legacy-device", 0)
 
       assert {:ok, 1} = UserInfoHelper.next_user_id()
-    end
-  end
-
-  describe "generate_unique_name/0" do
-    test "regenerates when the candidate collides with an existing row" do
-      assert {:ok, _row} = create_row("aaaaa", 1)
-
-      patch(
-        StringUtils,
-        :generate_random_string,
-        sequence(["aaaaa", "zzzzz"])
-      )
-
-      assert {:ok, "zzzzz"} = UserInfoHelper.generate_unique_name()
-    end
-
-    test "returns the checked candidate unchanged — never a fresh unchecked one" do
-      # Regression guard: the wrapper must check and return the SAME string,
-      # not generate one name for the lookup and a different one to hand out.
-      patch(
-        StringUtils,
-        :generate_random_string,
-        sequence(["bbbbb"])
-      )
-
-      assert {:ok, "bbbbb"} = UserInfoHelper.generate_unique_name()
     end
   end
 
@@ -194,12 +167,12 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelperTest do
       assert %{username: "My TX"} = UserInfoHelper.update_username(user_info, "My TX")
     end
 
-    test "a nameless device without an explicit name raises — no unchecked fallback identity" do
-      # The pre-fix code minted an unchecked generate_random_string() here.
-      # That path is gone: the state machine generates a unique-checked name
-      # first (generate_unique_name/0) and always passes it explicitly, so
-      # reaching update_username/2 without a name is a caller bug that must
-      # surface instead of silently provisioning a duplicate-prone identity.
+    test "a nameless device without an explicit name raises — no invented identity" do
+      # No code path may invent a username: the name is permanent on Palm
+      # hardware (established devices silently drop username writes), so
+      # only the operator can choose it consciously. Reaching
+      # update_username/2 without a name is a caller bug that must surface
+      # instead of silently provisioning an identity.
       user_info = %PalmSync4Mac.Comms.Pidlp.PilotUser{
         username: "",
         password: "",

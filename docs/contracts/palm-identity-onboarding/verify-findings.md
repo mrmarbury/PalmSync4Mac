@@ -11,6 +11,14 @@ Status: **resolved 2026-11-13** — engineer (Beezle-supervised session) chose t
   - Item 3 (LOW): `validate_username/1` rejects whitespace-only names; contract invariant 8 + error table updated.
   - Item 4 (LOW): vacuous `successful_sync_date` assertion replaced with a concrete `> 0` check; join-row count asserted in the zero-write regression test.
   - Item 5 (optional RE_ONBOARD breadcrumb): declined this cycle.
+- **2026-11-22 design change (engineer decision)**: RANDOM_FALLBACK removed — a
+  nameless device without an explicit username now fails pre_sync with
+  `{:error, :username_required}` before any row or device write. Rationale: the
+  username is permanent on Palm hardware (established devices drop username
+  writes), so a machine-invented identity is a lifelong decision taken
+  without the operator; the name must be a conscious choice (see D7 in
+  architecture-decision.md and rule 3.2 in laws.md).
+  `generate_unique_name/0` and `StringUtils.generate_random_string/1` deleted.
 
 ## Originally awaiting decision (presented 2026-09-18, all now applied/declined above)
 

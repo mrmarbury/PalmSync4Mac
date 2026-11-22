@@ -5,7 +5,7 @@ How to read this file:
 - Bulleted rules are global laws. All global laws must be true together.
 - Numbered rules are one decision tree. Exactly one numbered branch must be
   true for each device.
-- The state names KNOWN, ADOPT, ONBOARD, RANDOM_FALLBACK and RE_ONBOARD are
+- The state names KNOWN, ADOPT, ONBOARD, RE_ONBOARD are
   the states of the onboarding contract.
 
 ## Global laws
@@ -38,10 +38,8 @@ How to read this file:
 - If the explicit username is not valid, the pre-sync must stop with the
   error :username_invalid. The system must not create a row. The system
   must not write a byte to the device.
-- A generated fallback username must hold 5 characters from the set
-  [a-z0-9]. The system must check each candidate against all palm_user
-  rows before the system uses the candidate. The system must stop with an
-  error after 100 attempts.
+- The system must not generate a username. (The username is permanent on
+  Palm hardware. Only the user can choose the username consciously.)
 - A completed onboarding must return the palm_user_id of an existing row. A
   nil palm_user_id must never go to the sync workers.
 
@@ -78,6 +76,7 @@ How to read this file:
          system writes the username and the user_id to the device. If the
          device write fails, the system deletes the new row. The sync
          stops with the error :device_write_failed.
-   2. If no explicit username is given, the device classifies as
-      RANDOM_FALLBACK. The system generates a unique fallback username.
-      Then rule 3.1.2 (ONBOARD) applies with this fallback username.
+   2. If no explicit username is given, the pre-sync stops with the error
+      :username_required. No row is created. No byte goes to the device.
+      (The username is permanent on Palm hardware. The user must choose the
+      username consciously.)

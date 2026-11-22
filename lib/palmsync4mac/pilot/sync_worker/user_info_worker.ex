@@ -3,12 +3,15 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker do
   Handles reading and writing of the PalmUserInfo during a sync.
 
   pre_sync classifies every connected Palm by its device username and runs
-  the onboarding state machine (KNOWN / ADOPT / ONBOARD / RANDOM_FALLBACK /
-  RE_ONBOARD, see the contract in docs/contracts/palm-identity-onboarding/)
-  so each physical device maps to exactly one stable palm_user row. The
-  returned palm_user_id is the only identity channel downstream workers get
+  the onboarding state machine (KNOWN / ADOPT / ONBOARD / RE_ONBOARD, see
+  the contract in docs/contracts/palm-identity-onboarding/) so each
+  physical device maps to exactly one stable palm_user row. The returned
+  palm_user_id is the only identity channel downstream workers get
   — before it existed, every sync minted a fresh random row and the whole
   calendar was re-pushed as duplicates.
+
+  A nameless device is only onboarded with an explicit username argument:
+  the name is permanent on Palm hardware, so the system never invents one.
   """
 
   use GenServer, restart: :transient
@@ -170,13 +173,23 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorker do
     end
   end
 
-  # A nameless device: either the explicit argument decides its new name
-  # (RE_ONBOARD when a row already holds it, ONBOARD otherwise) or, with no
-  # argument, a random fallback name is generated.
-  defp classify_nameless(client_sd, user_info, nil) do
-    with {:ok, name} <- generate_unique_name() do
-      onboard(client_sd, user_info, name)
-    end
+  # A nameless device gets its identity only from the explicit argument
+  # (RE_ONBOARD when a row already holds that name, ONBOARD otherwise).
+  # Without an argument the pre-sync fails: the username is permanent once
+  # the device accepts it — established Palm hardware silently drops
+  # username writes — so a machine-invented name would be a lifelong
+  # identity decision taken without the operator. Nothing is created and no
+  # byte reaches the device until the name is passed consciously via the
+  # sync queue (until a UI exists, e.g. {UserInfoWorker, :pre_sync, ["My TX"]}).
+  defp classify_nameless(_client_sd, _user_info, nil) do
+    Logger.warning(
+      "The connected Palm is nameless and no explicit username argument was " <>
+        "passed to pre_sync. The username is permanent on Palm hardware, so " <>
+        "the system never invents one — pass a name via the sync queue, e.g. " <>
+        "{UserInfoWorker, :pre_sync, [\"My TX\"]}."
+    )
+
+    {:error, :username_required}
   end
 
   defp classify_nameless(client_sd, user_info, username) do

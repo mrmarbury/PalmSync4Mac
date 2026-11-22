@@ -73,7 +73,7 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
   The Palm wire limit is 40 bytes and the device speaks ISO-8859-1; anything
   outside printable ASCII, a blank or whitespace-only string (which would be
   read back as nameless on the next sync and fork the device into a second,
-  randomly-named identity), or a name longer than 40 bytes is rejected with
+  differently-named identity), or a name longer than 40 bytes is rejected with
   `{:error, :username_invalid}` so the caller aborts before any row is
   created or any byte reaches the device.
   """
@@ -88,8 +88,10 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
     end
   end
 
-  # No argument at all is fine — the random fallback names the device — so
-  # nil passes validation untouched; only a supplied name can be invalid.
+  # No argument at all passes validation: named devices sync without an
+  # argument all the time. A nameless device with no argument is rejected
+  # later, in classification, with {:error, :username_required} — only a
+  # supplied name can be invalid here.
   def validate_username(nil), do: :ok
 
   def validate_username(_), do: {:error, :username_invalid}
@@ -156,44 +158,10 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
   end
 
   @doc """
-  Generates a random fallback name that no palm_user row currently holds.
-
-  The underlying generator produces 5-char [a-z0-9] strings (about 60
-  million combinations), and this wrapper re-checks each candidate against
-  the database and regenerates on a hit — a check-then-retry loop instead of
-  hoping a collision never happens. The number of attempts is bounded so a
-  broken database connection surfaces as an error rather than an infinite
-  loop.
-  """
-  def generate_unique_name do
-    generate_unique_name(0)
-  end
-
-  defp generate_unique_name(attempts) when attempts >= 100 do
-    {:error, :unique_name_generation_failed}
-  end
-
-  defp generate_unique_name(attempts) do
-    candidate = generate_random_string()
-
-    case find_palm_user(candidate) do
-      {:ok, nil} ->
-        # No row holds this name, so it is safe to use as the device's new identity.
-        {:ok, candidate}
-
-      {:ok, _row} ->
-        generate_unique_name(attempts + 1)
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  @doc """
   Persists a new palm_user row (keyed by username) and returns its UUID.
 
-  This is the row-creation half of onboarding: ONBOARD, ADOPT and the random
-  fallback all funnel through here, upserting on username so a retry of a
+  This is the row-creation half of onboarding: ONBOARD and ADOPT all funnel
+  through here, upserting on username so a retry of a
   half-finished onboarding converges on the existing row instead of piling
   up duplicates. The StaleRecord fallback is the safety net for the
   eager-identity-check race: if the lookup that backs it cannot find the
@@ -380,12 +348,12 @@ defmodule PalmSync4Mac.Pilot.Helper.UserInfo.UserInfoHelper do
   The name argument is mandatory and must be the exact string the caller
   intends as the device identity (the explicit onboarding argument, or the
   row's existing username on RE_ONBOARD). There is deliberately no
-  nameless-no-argument fallback clause: the historical one minted an
-  unchecked `generate_random_string()`, which is the pre-fix
-  duplicate-identity bug shape. The state machine generates a
-  unique-checked name first (`generate_unique_name/0`) and always passes it
-  explicitly, so a nil or non-binary argument is a caller bug that surfaces
-  as a FunctionClauseError instead of silently provisioning an identity.
+  fallback clause at all: no code path may invent a username, because the
+  name is permanent on Palm hardware (established devices silently drop
+  username writes) and must therefore be a conscious operator choice.
+  Callers always pass the name explicitly, so a nil or non-binary argument
+  is a caller bug that surfaces as a FunctionClauseError instead of
+  silently provisioning an identity.
   """
   def update_username(%PalmSync4Mac.Comms.Pidlp.PilotUser{} = user_info, username)
       when is_binary(username) do

@@ -104,15 +104,18 @@ How a Palm gets its identity in PalmSync4Mac:
   A device that already carries a name ignores the argument, so leaving or
   passing a name is always safe for established devices.
 
-- **With no argument**, the sync generates a random 5-character name
-  (`[a-z0-9]`, e.g. `q7f3m`).
+- **With no argument**, the sync fails with `{:error, :username_required}`
+  for a blank device — nothing is written, on the device or in the database.
+  The name is the device's permanent identity, so the system never invents
+  one; it must be set consciously by you.
 
 > **⚠️ The name you first sync with becomes the device's PERMANENT identity.**
 > Palm names are immutable after the first sync — the device keeps whatever
 > name it received in that first session, forever. To get a nice label on your
-> Palm, onboard with an explicit name as shown above. If you let a random
-> generated name stick, the only way to change it is a hard reset plus a
-> clean database (see below).
+> Palm, onboard with an explicit name as shown above. A nameless device
+> without an explicit name refuses to onboard; the only alternative would be
+> a machine-invented identity you can never change (short of a hard reset
+> plus a clean database, see below).
 
 A re-onboarded device — hard-reset hardware that re-enters sync asking for a
 name the database already knows — gets its full calendar re-pushed from
@@ -173,7 +176,7 @@ Sometimes this might be needed to get new dependencies right:
 ### Run the sync - for now, until there is a UI
 
 1. `iex -S mix`
-1. `PalmSync4Mac.Pilot.SyncTest.sync()` — for a blank device with no name argument this generates a random identity (see [Device Onboarding](#device-onboarding--read-this-before-your-first-sync)); to name it, put the name in the `UserInfoWorker` pre_sync tuple as described there
+1. `PalmSync4Mac.Pilot.SyncTest.sync()` — a blank device refuses to sync without a name argument and fails with `{:error, :username_required}` (see [Device Onboarding](#device-onboarding--read-this-before-your-first-sync)); put the name in the `UserInfoWorker` pre_sync tuple as described there
 
 ### Links
 

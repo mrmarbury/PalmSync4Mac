@@ -32,6 +32,12 @@
 
 - `list_unsynced_for_device` logs a loud warning when it returns "everything" (zero join rows). Legitimate for a first sync after onboarding; the message documents that and the data-loss alternative. No behavior change.
 
+## D7: No generated usernames — a nameless device requires a conscious explicit name (engineer decision 2026-11-22)
+
+- **Chosen**: a nameless device without an explicit `username` argument fails pre_sync with `{:error, :username_required}` — no row, no device write. `UserInfoHelper.generate_unique_name/0` and `StringUtils.generate_random_string/1` are removed; no code path invents a username.
+- **Rationale**: the username is permanent in practice — established Palm hardware silently drops username writes (proven on the wire, see D2) — so a machine-invented identity would be a lifelong decision taken without the operator. The name must be chosen consciously: today via the sync queue argument (`{UserInfoWorker, :pre_sync, ["My TX"]}`), later via the LiveView onboarding flow (backlog).
+- **Supersedes**: the RANDOM_FALLBACK state of the 2026-09 cycle (issue #42's original random-generator clause).
+
 ## Module placement
 
 | Change | File |

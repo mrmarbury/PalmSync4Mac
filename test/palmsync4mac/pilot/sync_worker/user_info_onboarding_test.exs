@@ -110,8 +110,8 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoOnboardingTest do
     test "pre_sync twice for the same mocked device returns the same palm_user_id and creates one row" do
       device = start_device()
 
-      assert {:ok, first_id} = UserInfoWorker.pre_sync()
-      assert {:ok, second_id} = UserInfoWorker.pre_sync()
+      assert {:ok, first_id} = UserInfoWorker.pre_sync("My TX")
+      assert {:ok, second_id} = UserInfoWorker.pre_sync("My TX")
 
       assert first_id == second_id
 
@@ -163,9 +163,9 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoOnboardingTest do
         {:ok, 42, 100, 42}
       end)
 
-      # First sync: the blank device gets onboarded (random fallback name),
+      # First sync: the blank device gets onboarded with the explicit name,
       # and every unsynced event is written to it.
-      {:ok, first_palm_user_id} = UserInfoWorker.pre_sync()
+      {:ok, first_palm_user_id} = UserInfoWorker.pre_sync("My TX")
       assert :ok = AppointmentWorker.sync_to_palm(first_palm_user_id, %PilotSysInfo{})
       assert Agent.get(write_counter, & &1) == 1
 
@@ -219,21 +219,32 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoOnboardingTest do
       assert length(palm_user_rows()) == 1
     end
 
-    test "blank device with no argument gets a unique generated name and the row survives a second sync" do
+    test "a nameless device without an explicit argument stops the sync with :username_required" do
       start_device()
 
-      assert {:ok, first_id} = UserInfoWorker.pre_sync()
+      {:ok, write_counter} = Agent.start(fn -> 0 end)
 
-      assert [%PalmUserRow{username: generated_name, id: ^first_id}] = palm_user_rows()
-      assert String.match?(generated_name, ~r/^[a-z0-9]{5}$/)
+      patch(Pidlp, :write_user_info, fn _sd, %PilotUser{} = _user_info ->
+        Agent.update(write_counter, &(&1 + 1))
+        {:ok, 42}
+      end)
 
-      # Second sync: the device read back the provisioned identity, so it
-      # classifies as KNOWN and resolves to the generated row.
-      assert {:ok, ^first_id} = UserInfoWorker.pre_sync()
-      assert {:ok, ^first_id} = UserInfoWorker.pre_sync("attempt to rename")
+      # The username is permanent once the device takes it (established Palm
+      # hardware silently drops later username writes), so a machine-invented
+      # name would be a lifelong identity decision taken without the
+      # operator. The pre-sync must refuse to onboard a nameless device
+      # until an explicit name is passed to the sync queue.
+      log =
+        capture_log(fn ->
+          assert {:error, :username_required} = UserInfoWorker.pre_sync()
+        end)
 
-      # Still exactly one row and the identity never changed.
-      assert [%PalmUserRow{username: ^generated_name}] = palm_user_rows()
+      assert log =~ "no explicit username"
+
+      # Nothing happened anywhere: no row was created and no identity write
+      # reached the device.
+      assert [] == palm_user_rows()
+      assert Agent.get(write_counter, & &1) == 0
     end
 
     test "ONBOARD device-write failure deletes the provisioned row and returns :device_write_failed" do

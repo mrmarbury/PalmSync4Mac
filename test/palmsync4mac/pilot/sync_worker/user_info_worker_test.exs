@@ -66,7 +66,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorkerTest do
       assert {:error, _} = result
     end
 
-    test "generates random username when device returns empty" do
+    test "returns {:error, :username_required} when the device is nameless and no argument is given" do
       fake_user = %PilotUser{
         username: "",
         password_length: 0,
@@ -86,7 +86,7 @@ defmodule PalmSync4Mac.Pilot.SyncWorker.UserInfoWorkerTest do
 
       result = UserInfoWorker.pre_sync()
 
-      assert {:ok, _palm_user_id} = result
+      assert {:error, :username_required} = result
     end
 
     test "calling pre_sync twice with same username returns same palm_user_id" do
