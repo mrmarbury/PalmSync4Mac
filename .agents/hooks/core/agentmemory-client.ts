@@ -5,6 +5,7 @@ import http from "node:http";
 import https from "node:https";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { currentMemoryAdapter } from "./memory-adapter.ts";
 
 function endpointUrl(): string | null {
   if (process.env.OMA_NO_AGENTMEMORY === "1") return null;
@@ -24,6 +25,90 @@ function endpointUrl(): string | null {
   } catch {
     return null;
   }
+}
+
+// AgentMemory >= 0.9.x always provisions an API secret and answers 401 to
+// unauthenticated REST calls (health included). Mirror of
+// cli/state/agentmemory-auth.ts → resolveAgentMemorySecret (hooks cannot
+// import cli/), which in turn mirrors AgentMemory's `resolveClientSecret`:
+// env secret first; file-discovered secrets only for loopback endpoints.
+function usableSecret(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("${") && trimmed.endsWith("}")) return "";
+  return trimmed;
+}
+
+function readSecretFile(path: string): string {
+  try {
+    return usableSecret(readFileSync(path, "utf-8"));
+  } catch {
+    return "";
+  }
+}
+
+function readEnvFileSecret(path: string): string {
+  let content: string;
+  try {
+    content = readFileSync(path, "utf-8");
+  } catch {
+    return "";
+  }
+  let found = "";
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    const key = trimmed
+      .slice(0, eq)
+      .replace(/^export\s+/, "")
+      .trim();
+    if (key !== "AGENTMEMORY_SECRET") continue;
+    let value = trimmed.slice(eq + 1).trim();
+    const quote = value[0];
+    if ((quote === '"' || quote === "'") && value.length > 1) {
+      const close = value.indexOf(quote, 1);
+      if (close !== -1) value = value.slice(1, close);
+    } else {
+      const hash = value.indexOf(" #");
+      if (hash !== -1) value = value.slice(0, hash).trim();
+    }
+    found = usableSecret(value);
+  }
+  return found;
+}
+
+function isLoopbackUrl(url: string): boolean {
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  const bare = hostname.replace(/^\[|\]$/g, "");
+  return (
+    bare === "localhost" || bare === "::1" || /^127(?:\.\d{1,3}){3}$/.test(bare)
+  );
+}
+
+export function resolveAgentMemorySecret(
+  baseUrl: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const fromEnv = usableSecret(env.AGENTMEMORY_SECRET);
+  if (fromEnv) return fromEnv;
+  if (env.AGENTMEMORY_CREDENTIAL_MODE === "explicit") return "";
+  if (!isLoopbackUrl(baseUrl)) return "";
+  const home = join(homedir(), ".agentmemory");
+  return (
+    readEnvFileSecret(env.AGENTMEMORY_ENV_FILE || join(home, ".env")) ||
+    readSecretFile(join(home, "secret")) ||
+    (env.AGENTMEMORY_DATA_DIR
+      ? readSecretFile(join(env.AGENTMEMORY_DATA_DIR, "secret"))
+      : "")
+  );
 }
 
 let reachable: boolean | null = null;
@@ -56,7 +141,11 @@ function requestAgentMemory(
     }
 
     const body = options.body;
-    const headers = { ...(options.headers ?? {}) };
+    const secret = resolveAgentMemorySecret(baseUrl);
+    const headers: Record<string, string> = {
+      ...(secret ? { authorization: `Bearer ${secret}` } : {}),
+      ...(options.headers ?? {}),
+    };
     if (body !== undefined && headers["content-length"] === undefined) {
       headers["content-length"] = String(Buffer.byteLength(body));
     }
@@ -233,6 +322,7 @@ export function parseSearchResults(
 export async function recallFacts(
   query: string,
   k = 5,
+  projectDir: string = process.cwd(),
 ): Promise<RecalledFact[]> {
   if (!query.trim()) return [];
   // The whole body is guarded so this honors its "never throws" contract: the
@@ -240,13 +330,22 @@ export async function recallFacts(
   // socket error from the shared daemon), and an unguarded throw here blanks the
   // boundary snapshot the hook would otherwise emit. Degrade to local-only.
   try {
+    const adapter = currentMemoryAdapter(projectDir);
+    if (adapter) return await adapter.recall(query, k, projectDir);
     if (!(await isAgentMemoryReachable())) return [];
     const url = endpointUrl();
     if (!url) return [];
     const response = await requestAgentMemory(url, "/agentmemory/search", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ query, limit: k }),
+      // Match the project identity used by observeWithTimeout. The query's
+      // project-name term is a relevance hint, not a scope restriction.
+      body: JSON.stringify({
+        query,
+        limit: k,
+        project: basename(projectDir),
+        cwd: projectDir,
+      }),
       timeoutMs: 2000,
     });
     if (response.statusCode < 200 || response.statusCode >= 300) return [];
@@ -266,6 +365,11 @@ export async function observeWithTimeout(payload: {
   // endpoint resolution can throw under load, and a throw here must not abort
   // the hook that fired the observe.
   try {
+    const adapter = currentMemoryAdapter(payload.projectDir);
+    if (adapter) return await adapter.observe(payload);
+    // An explicit opt-out leaves no observation to retry. Injected adapters
+    // still own their delivery policy, including non-AgentMemory providers.
+    if (process.env.OMA_NO_AGENTMEMORY === "1") return true;
     if (!(await isAgentMemoryReachable())) return false;
     const url = endpointUrl();
     if (!url) return false;

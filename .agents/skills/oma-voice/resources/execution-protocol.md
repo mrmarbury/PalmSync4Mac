@@ -1,6 +1,6 @@
 # Execution Protocol
 
-This file lays out the runtime sequence for every oma-voice call. SKILL.md gives the high-level scenes; this file is the operational checklist the agent executes.
+This file lays out the Voicebox generation/transcription sequence. Existing-audio processing dispatches to `audio-processing.md` before the health check; it does not require Voicebox or a profile.
 
 ## Step 0: Mode detection
 
@@ -11,14 +11,21 @@ Detect one of three modes from the user request:
 | Short message after a long task, "tell me when done", "음성으로 알려줘" | `notify` |
 | "Generate a voiceover", "make an mp3", "narrate this text", explicit length over a sentence | `asset` |
 | Audio file path provided plus a "transcribe", "회의록", "받아 적어" intent | `transcribe` |
+| Existing audio plus conversion, loudness, or duration fitting | `process`: use `audio-processing.md`; skip the Voicebox steps below |
 
 If the signal is ambiguous, ask one question before proceeding.
 
 ## Step 1: Health check
 
+Resolve `voice.backend` first (`resources/voicestudio.md`). When it selects
+VoiceStudio, follow that resource instead of Steps 1-3 and 6-7; the remaining
+steps still apply.
+
 1. Probe `GET http://127.0.0.1:17493/health` with a 5-second timeout.
 2. On success, continue to Step 2.
-3. On failure, surface this hint and exit with code 5:
+3. On failure with `voice.backend: auto`, probe VoiceStudio as described in
+   `resources/voicestudio.md`. With `voice.backend: voicebox`, or when no
+   backend is healthy, surface this hint and exit with code 5:
    ```
    Voicebox is not reachable. Install or launch the Voicebox desktop app
    from GitHub Releases (https://github.com/jamiepine/voicebox/releases).
@@ -48,10 +55,15 @@ Model status and audio retrieval are REST-only at the Voicebox app, not exposed 
 On the first call in this session:
 
 1. Invoke MCP `tools/list` on the `voicebox` server.
-2. Confirm all four tool names above are present.
-3. If a required tool is missing, exit with code 4 and surface the gap. Voicebox may have renamed a tool in a newer release.
+2. Confirm the tool required by the selected mode: `voicebox_transcribe` for `transcribe`, or
+   `voicebox_speak` and `voicebox_list_profiles` for `notify` and `asset`. `captures` is optional.
+3. If a required tool is missing, exit with code 4 and surface the gap. A missing profile tool
+   must not block transcription. Voicebox may have renamed a tool in a newer release.
 
-## Step 3: Profile resolution
+## Step 3: TTS profile resolution
+
+Run this step only for `notify` and `asset` modes. `transcribe` has no profile
+parameter: skip directly to its audio checks and then `voicebox_transcribe`.
 
 1. Call the cached `profiles` tool.
 2. If the list is empty, surface this hint and exit with code 3:
@@ -79,7 +91,7 @@ Run the checklist from `SKILL.md > Clarification protocol`. Notification mode sk
 
 ## Step 6: Model availability (optional)
 
-For `asset` and `notify` modes:
+For `asset` and `notify` modes only:
 
 1. Probe `GET http://127.0.0.1:17493/models/status` over loopback REST (model status is not exposed as an MCP tool — see Step 2).
 2. If the selected engine reports `loaded: false`, ask the user before triggering a download. Voicebox owns the download flow; this skill only relays the prompt.

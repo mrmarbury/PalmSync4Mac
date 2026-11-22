@@ -8,11 +8,12 @@ Run through every item before submitting your work.
 - [ ] Do NOT flag `src/proxy.ts` as dead code or recommend renaming to `middleware.ts`; `proxy.ts` is the canonical Next.js 16+ convention
 <!-- oma-docs:ignore-end -->
 - [ ] Config flags use the `Proxy` form (e.g. `skipProxyUrlNormalize`), not the legacy `Middleware` form
+- [ ] Every `<Link>` passes `prefetch={false}`; any prefetching link is a deliberate high-intent target with an inline reason
 
 ## TypeScript
 - [ ] Strict mode, no `any` types
 - [ ] Explicit interfaces for all component props
-- [ ] No TypeScript errors (`npx tsc --noEmit`)
+- [ ] No TypeScript errors (run the project's configured `typecheck` command; preserve framework checks and the selected TypeScript 7/native-preview executable)
 
 ## Styling
 - [ ] Tailwind CSS only (no inline styles, no CSS modules)
@@ -33,6 +34,15 @@ Run through every item before submitting your work.
 - [ ] Error state (user-friendly message + retry action)
 - [ ] Empty state (helpful message + CTA)
 - [ ] Optimistic updates where appropriate
+
+## Recommended product-interface review (advisory)
+
+For new or substantially changed admin consoles, dashboards, SaaS product UI,
+and internal tools, recommend `oma-design` with Interface Design
+`design-review` using [product-interface-review.md](../../oma-design/resources/product-interface-review.md).
+Record `completed`, `recommended-not-run` with a reason, or `not-applicable`.
+An unavailable or omitted advisory review does not block completion; the task's
+required functional, responsive, and accessibility checks still apply.
 
 ## Deferred / Stub Markers (transparency)
 - [ ] Every deferred external integration is wrapped in `// TODO(oma-deferred): <vendor or feature>`

@@ -1,9 +1,6 @@
 ---
 name: oma-pdf
-description: >
-  Convert PDF files to Markdown using opendataloader-pdf. Extracts text, tables, headings,
-  lists, and images with correct reading order. Use for PDF parsing, PDF to Markdown conversion,
-  document extraction, and AI-ready data preparation.
+description: "Extract PDF text, headings, tables, and images into Markdown using opendataloader-pdf. Use for PDF parsing, not PDF layout creation."
 ---
 
 # PDF Skill - PDF to Markdown Conversion
@@ -76,6 +73,7 @@ Convert PDF files into structured Markdown or another requested extraction forma
 - If the PDF is scanned or image-based, start or reuse the hybrid OCR server and convert with hybrid mode.
 - If conversion fails because the PDF is encrypted, stop and ask for the password or an unlocked copy.
 - If conversion hits memory or size limits, process smaller page ranges into distinct output directories (or append `--to-stdout`) so repeated runs do not overwrite the same basename.
+- When a transition above leaves standard conversion, record the selected mode with subject `pdf.route-selection` per `../_shared/runtime/route-selection.md` (mode, and the probe or output defect that required it).
 
 ### Failure and recovery
 | Failure | Recovery |
@@ -142,7 +140,7 @@ On-request flags — `--sanitize` (PII masking), `--pages` (range extraction), `
 - The output location is writable or can be created.
 - Required CLIs are available through `uvx`.
 - OCR is only attempted when hybrid mode is available or can be started.
-- Defaults come from `config/pdf-config.yaml`; explicit user options override them, and `output.overwrite: false` requires confirmation before replacing an existing output file.
+- Defaults come from the `pdf:` section of `.agents/oma-config.yaml`, falling back to `config/pdf-config.yaml` for unset keys; explicit user options override both, and `output.overwrite: false` requires confirmation before replacing an existing output file.
 
 ### Effects and side effects
 - Creates or overwrites extraction output depending on configuration and user intent.
@@ -159,6 +157,6 @@ On-request flags — `--sanitize` (PII masking), `--pages` (range extraction), `
 
 ## References
 - Execution protocol: `resources/execution-protocol.md`
-- Configuration: `config/pdf-config.yaml`
+- Configuration: read the `pdf:` section of `.agents/oma-config.yaml` first, then fall back to `config/pdf-config.yaml` for any key it does not set. User overrides belong in `.agents/oma-config.yaml`, since `oma update` overwrites the skill config.
 - Context loading: `../_shared/core/context-loading.md`
 - Quality principles: `../_shared/core/quality-principles.md`

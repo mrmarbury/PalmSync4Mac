@@ -294,3 +294,15 @@ video:
 hwp:
   version:
     pinned: 4.1.0
+mcp:
+  devtools_browsers:
+    - aside
+providers:
+  web: native
+  code_intelligence: serena
+  semantic_memory: agentmemory
+
+# Added by oma update — new config keys (template defaults; edit freely)
+agents:
+  eval:
+    model: anthropic/claude-sonnet-5-5

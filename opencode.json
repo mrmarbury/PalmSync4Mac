@@ -7,6 +7,14 @@
         "mcp"
       ],
       "enabled": true
+    },
+    "aside": {
+      "type": "local",
+      "command": [
+        "aside",
+        "mcp"
+      ],
+      "enabled": true
     }
   }
 }

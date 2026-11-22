@@ -21,7 +21,7 @@
         "timeout": 3
       },
       {
-        "hook": "serena-primer.ts",
+        "hook": "code-intelligence-primer.ts",
         "timeout": 3
       }
     ],
@@ -32,14 +32,37 @@
         "timeout": 3
       },
       {
+        "hook": "code-intelligence-guard.ts",
+        "matcher": "Bash",
+        "timeout": 2
+      },
+      {
         "hook": "test-filter.ts",
         "matcher": "Bash",
         "timeout": 5
       }
     ],
-    "Stop": {
-      "hook": "persistent-mode.ts",
-      "timeout": 5
-    }
+    "PostToolUse": [
+      {
+        "hook": "refactor-guard.ts",
+        "matcher": "Write|Edit",
+        "timeout": 5
+      },
+      {
+        "hook": "skill-route.ts",
+        "matcher": "Skill|Read|Bash",
+        "timeout": 3
+      }
+    ],
+    "Stop": [
+      {
+        "hook": "persistent-mode.ts",
+        "timeout": 30
+      },
+      {
+        "hook": "refactor-guard.ts",
+        "timeout": 5
+      }
+    ]
   }
 }

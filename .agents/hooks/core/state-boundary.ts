@@ -2,50 +2,21 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { recallFacts } from "./agentmemory-client.ts";
-import { agyConversationId, isAgyInput } from "./agy-input.ts";
-import { syncGrokContext } from "./grok-context.ts";
+import { agyConversationId, readAgyPrompt } from "./agy-input.ts";
+import { evolutionNoticeLines } from "./evolution-notice.ts";
 import { makePromptOutput } from "./hook-output.ts";
 import { writeInjectLog } from "./inject-log.ts";
 import { normalizePromptInput } from "./prompt-input.ts";
-import { emitEvent, type OmaEvent, readEvents } from "./state-emit.ts";
+import {
+  emitEvent,
+  type OmaEvent,
+  readEvents,
+  vendorHomePayload,
+} from "./state-emit.ts";
 import { getActiveSid, readIndex, setLastSession } from "./state-marker.ts";
 import type { HandlerCtx, HandlerResult, HookInput, Vendor } from "./types.ts";
-import { getProjectDir, inferVendorFromScriptPath } from "./vendor-detect.ts";
+import { detectVendorFromInput, getProjectDir } from "./vendor-detect.ts";
 import { type MemoryFact, renderStateSnapshot } from "./vendor-renderer.ts";
-
-function detectVendor(input: Record<string, unknown>): Vendor {
-  const event = input.hook_event_name as string | undefined;
-  const hookEventName = input.hookEventName as string | undefined;
-  const byScriptPath = inferVendorFromScriptPath(import.meta.filename);
-  if (byScriptPath) return byScriptPath;
-
-  // agy (Antigravity) sends no hook_event_name; detect by its stdin shape.
-  if (isAgyInput(input)) return "antigravity";
-
-  if (process.env.GROK_WORKSPACE_ROOT || hookEventName?.includes("prompt")) {
-    if (process.env.GROK_WORKSPACE_ROOT) return "grok";
-  }
-
-  if (
-    process.env.KIRO_PROJECT_DIR ||
-    event === "userPromptSubmit" ||
-    hookEventName === "userPromptSubmit"
-  ) {
-    return "kiro";
-  }
-
-  if (event === "PreInvocation") return "antigravity";
-  if (event === "beforeSubmitPrompt") return "cursor";
-  if (
-    event === "UserPromptSubmit" &&
-    "session_id" in input &&
-    !("sessionId" in input)
-  ) {
-    return "codex";
-  }
-  if (process.env.QWEN_PROJECT_DIR) return "qwen";
-  return "claude";
-}
 
 function getVendorSid(input: Record<string, unknown>): string {
   return (
@@ -100,29 +71,34 @@ export async function onBoundary(
   vendorSid: string,
   promptText?: string,
   forced = false,
+  /** Host to record when it differs from the dialect `vendor` (HandlerCtx.host). */
+  host?: string,
 ): Promise<string | null> {
+  const recorded = host ?? vendor;
   const idx = readIndex(projectDir);
   const previous = idx.lastSession;
   const boundary =
-    !previous || previous.vendor !== vendor || previous.vendorSid !== vendorSid;
+    !previous ||
+    previous.vendor !== recorded ||
+    previous.vendorSid !== vendorSid;
   const statelessTurnFlush = vendor === "kiro" && vendorSid === "unknown";
 
   // `forced` = post-compaction SessionStart: the session id is unchanged (no
   // boundary), but the snapshot was just compacted out of context — re-emit.
   if (!boundary && !statelessTurnFlush && !forced) {
-    setLastSession(projectDir, vendor, vendorSid);
+    setLastSession(projectDir, recorded, vendorSid);
     return null;
   }
 
   const sid = getActiveSid(idx);
   if (!sid) {
-    setLastSession(projectDir, vendor, vendorSid);
+    setLastSession(projectDir, recorded, vendorSid);
     return null;
   }
 
   await emitEvent(projectDir, sid, {
     kind: "boundary",
-    vendor,
+    vendor: recorded,
     vendorSid,
     payload: {
       reason: !boundary
@@ -134,12 +110,13 @@ export async function onBoundary(
           : "session-created",
       fromVendor: previous?.vendor ?? null,
       fromVendorSid: previous?.vendorSid ?? null,
-      toVendor: vendor,
+      toVendor: recorded,
       toVendorSid: vendorSid,
       previousSid: sid,
+      ...vendorHomePayload(recorded),
     },
   });
-  setLastSession(projectDir, vendor, vendorSid);
+  setLastSession(projectDir, recorded, vendorSid);
 
   const recentEvents = readEvents(projectDir, sid).slice(-10);
   // L2/L3 rehydration: recall enriched facts from AgentMemory for this working
@@ -147,14 +124,21 @@ export async function onBoundary(
   // out, so the snapshot degrades to local L1 events only (design D33/D34).
   const recallQuery = buildRecallQuery(projectDir, recentEvents, promptText);
   const facts: MemoryFact[] = recallQuery
-    ? await recallFacts(recallQuery, 5)
+    ? await recallFacts(recallQuery, 5, projectDir)
     : [];
+  let evolution: string[] = [];
+  try {
+    evolution = evolutionNoticeLines(projectDir);
+  } catch {
+    // The notice is a courtesy; a damaged lineage log must not break the hook.
+  }
   const rendered = renderStateSnapshot({
     vendor,
     sid,
     reason: "vendor/session boundary",
     recentEvents,
     facts,
+    evolution,
   });
 
   // D52: forensic inject audit trail (best-effort, redacted, user-only perms).
@@ -168,11 +152,6 @@ export async function onBoundary(
     facts,
     rendered,
   });
-
-  // Grok ignores prompt-hook stdout, so mirror the snapshot to its session-start
-  // context file (CLAUDE.local.md). Loaded on the next Grok session = close-reopen
-  // resume on Grok. Best-effort; L1 events remain the SSOT.
-  if (vendor === "grok") syncGrokContext(projectDir, rendered);
 
   return rendered;
 }
@@ -193,7 +172,7 @@ export async function run(
 ): Promise<HandlerResult | null> {
   if (input.kind !== "prompt") return null;
 
-  const { vendor, cwd: projectDir, sid: vendorSid = "unknown" } = ctx;
+  const { vendor, host, cwd: projectDir, sid: vendorSid = "unknown" } = ctx;
   // input.kind === "prompt" is guaranteed by the guard above; the user prompt is
   // the primary recall signal for boundary rehydration. A post-compaction
   // SessionStart (source === "compact") forces re-emission: the session id is
@@ -204,6 +183,7 @@ export async function run(
     vendorSid,
     input.prompt,
     input.source === "compact",
+    host,
   );
   if (!rendered) return null;
   return { type: "context", additionalContext: rendered };
@@ -220,14 +200,21 @@ async function main() {
     process.exit(0);
   }
 
-  const vendor = detectVendor(input);
+  const vendor = detectVendorFromInput(input, "prompt", import.meta.filename);
   const projectDir = getProjectDir(vendor, input);
   const vendorSid = getVendorSid(input);
+  let prompt = normalizePromptInput(input.prompt);
+
+  if (vendor === "antigravity" && !prompt) {
+    const invocationNum = input.invocationNum;
+    if (typeof invocationNum === "number" && invocationNum > 1) process.exit(0);
+    prompt = readAgyPrompt(input.transcriptPath, input.lastUserInput);
+  }
 
   // Delegate to run() — single logic source.
   const hookInput: HookInput = {
     kind: "prompt",
-    prompt: normalizePromptInput(input.prompt),
+    prompt,
     cwd: projectDir,
   };
   const ctxVal: HandlerCtx = { vendor, cwd: projectDir, sid: vendorSid };

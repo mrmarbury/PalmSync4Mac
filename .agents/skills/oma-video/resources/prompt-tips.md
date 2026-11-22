@@ -18,7 +18,7 @@ Example (shorts): `30s vertical short for a dev audience: how oma-video turns a 
 ### shorts (9:16)
 - **Hook in the first 1.5s** — the first scene's on-screen text must earn the swipe.
 - Keep scenes 2–4s; favor 6–10 scenes for a 30s clip (≤ `max_scenes` 40).
-- oma-image stills get Ken Burns motion — write prompts that frame a clear subject with headroom for the pan.
+- oma-image stills stay static (no Ken Burns) — write prompts that frame one clear subject.
 - TikTok captions are centered, static windowed cues (one SRT cue on screen at a time, CSS-wrapped — no per-word animation); keep narration lines short (≤ ~8 words/segment) so cues switch cleanly.
 
 ### explainer (16:9 / 9:16)
@@ -26,11 +26,12 @@ Example (shorts): `30s vertical short for a dev audience: how oma-video turns a 
 - Mix oma-slide frames (structure, bullet beats) with oma-image diagrams (concepts) and code frames.
 - Code frames use one fixed deterministic theme (v1). Keep snippets short and legible at 1920×1080.
 - Narration should explain *why*, not read the code line-by-line.
+- One diagram per scene, about 15–20s each; see `motion-principles.md` for the scene cast and diagram steps.
 
 ### demo (16:9)
-- The visual is a human-recorded capture (`--capture`). The brief drives the intro card, zoom/callout beats, and outro.
-- Call out *where to look* on screen — Remotion adds zoom + callouts over the capture.
-- Keep the intro ≤ 3s; viewers came for the product, not the title card.
+- The visual is a human-recorded capture (`--capture`). The brief drives the zoom/callout beats and outro.
+- Call out *where to look* on screen — HyperFrames adds zoom + callouts over the capture.
+- Open on the product; add a title card only when the user asks for one.
 
 ## Per-scene image prompts (oma-image)
 
@@ -64,7 +65,7 @@ Scene/backdrop → Subject → Details → Constraints
 
 ## Localization
 
-- Narration + on-screen text are authored in `--locale`. For a non-source locale, oma-translator translates the script text before TTS/captions (key-free). If the translator is absent, the source text is kept and a warning is recorded.
+- Narration + on-screen text are authored in `--locale`. For a non-source locale, oma-translation translates the script text before TTS/captions (key-free). If the translator is absent, the source text is kept and a warning is recorded.
 - oma-image prompts are sent in **English** regardless of `--locale`; translate the user's subject and show the translated prompt during amplification.
 
 ## Determinism

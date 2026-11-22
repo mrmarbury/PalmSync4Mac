@@ -4,31 +4,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { makePreToolOutput } from "./hook-output.ts";
-import type { HandlerCtx, HandlerResult, HookInput, Vendor } from "./types.ts";
-import { getHookDir, getProjectDir } from "./vendor-detect.ts";
-
-// --- Vendor detection (same logic as keyword-detector.ts) ---
-
-function detectVendor(input: Record<string, unknown>): Vendor {
-  const event = input.hook_event_name as string | undefined;
-  const _hookEventName = input.hookEventName as string | undefined;
-
-  // pi spawns this script from `.pi/extensions/oma/`; trust the script path.
-  if (import.meta.filename.includes(`${join(".pi", "extensions")}`))
-    return "pi";
-
-  if (process.env.GROK_WORKSPACE_ROOT) return "grok";
-  if (process.env.KIRO_PROJECT_DIR) return "kiro";
-
-  if (event === "preToolUse" || _hookEventName === "preToolUse") return "kiro";
-  if (event === "PreToolUse" && process.env.ANTIGRAVITY_PROJECT_DIR)
-    return "antigravity";
-  if (event === "PreToolUse") {
-    if ("session_id" in input && !("sessionId" in input)) return "codex";
-  }
-  if (process.env.QWEN_PROJECT_DIR) return "qwen";
-  return "claude";
-}
+import type { HandlerCtx, HandlerResult, HookInput } from "./types.ts";
+import {
+  detectVendorFromInput,
+  getHookDir,
+  getProjectDir,
+} from "./vendor-detect.ts";
 
 // --- Test runner patterns ---
 
@@ -92,7 +73,7 @@ interface PreToolUseInput {
  * Returns a `mutate` HandlerResult when a test command should be piped through
  * the failure-filter script, or `null` when the input is not a test command /
  * the filter script is not installed.
- * `ctx.cwd` must be the resolved git-root project directory.
+ * `ctx.cwd` must be the resolved project root (see fs-utils resolveProjectRoot).
  */
 export async function run(
   input: HookInput,
@@ -100,8 +81,11 @@ export async function run(
 ): Promise<HandlerResult | null> {
   if (input.kind !== "pre_tool") return null;
 
-  const { toolName, toolInput, cwd: projectDir } = input;
+  const { toolName, toolInput } = input;
   const { vendor } = ctx;
+  // Filter scripts live under the project root. ctx.cwd is the resolved root
+  // even after the session cd's into a subdirectory; input.cwd is not.
+  const projectDir = ctx.cwd || input.cwd;
 
   // Claude-family uses Bash; some CLIs use run_shell_command; Cursor names its
   // terminal tool "Shell" (matches cursor.json's preToolUse matcher); Kiro's
@@ -110,11 +94,14 @@ export async function run(
     toolName !== "Bash" &&
     toolName !== "run_shell_command" &&
     toolName !== "Shell" &&
-    toolName !== "execute_bash"
+    toolName !== "execute_bash" &&
+    toolName !== "run_command"
   )
     return null;
 
-  const command = toolInput.command as string | undefined;
+  const command = (toolInput.command ?? toolInput.CommandLine) as
+    | string
+    | undefined;
   if (!command) return null;
 
   // The rewrite below is Bash-only (`set -o pipefail`, subshell, pipe to
@@ -133,24 +120,35 @@ export async function run(
   const isExcluded = EXCLUDE_PATTERNS.some((p) => p.test(command));
   if (isExcluded) return null;
 
-  // Resolve the filter script: vendor hook dir first, then the opencode
-  // bridge dir (opencode has no core Vendor identity — its subprocess payload
-  // detects as claude, whose hook dir is absent in opencode-only installs),
-  // then the SSOT core dir as the last resort.
+  // Resolve the filter script: the bridge dir a packaged host plugin exports
+  // (OMA_HOOK_BRIDGE_DIR — the opencode npm package and the Command Code mod
+  // live outside the project), then the owned vendor namespace, legacy hook
+  // dir, the opencode-family bridge dirs (opencode / kilo have no core Vendor
+  // identity — their subprocess payload detects as claude, whose hook dir is
+  // absent in opencode- or kilo-only installs), then the SSOT core dir.
+  const bridgeDir = process.env.OMA_HOOK_BRIDGE_DIR;
   const filterScript = [
-    getHookDir(vendor),
-    join(".opencode", "plugins", "oma"),
-    join(".agents", "hooks", "core"),
-  ]
-    .map((dir) => join(projectDir, dir, "filter-test-output.sh"))
-    .find((p) => existsSync(p));
+    ...(bridgeDir ? [join(bridgeDir, "filter-test-output.sh")] : []),
+    ...[
+      join(getHookDir(vendor), "oma"),
+      getHookDir(vendor),
+      join(".opencode", "plugins", "oma"),
+      join(".kilo", "plugins", "oma"),
+      join(".agents", "hooks", "core"),
+    ].map((dir) => join(projectDir, dir, "filter-test-output.sh")),
+  ].find((p) => existsSync(p));
   if (!filterScript) return null;
 
-  const filteredCmd = `set -o pipefail; (${command}) 2>&1 | bash "${filterScript}"`;
-  const updatedInput: Record<string, unknown> = {
-    ...toolInput,
-    command: filteredCmd,
-  };
+  // The original command sits on its own lines inside the subshell: a
+  // trailing `# comment` would otherwise swallow the closing paren, and a
+  // heredoc's terminator must stay alone on its line (`EOF)` never matches).
+  const filteredCmd = `set -o pipefail; (\n${command}\n) 2>&1 | bash "${filterScript}"`;
+  const usesCommandLine =
+    typeof toolInput.CommandLine === "string" &&
+    typeof toolInput.command !== "string";
+  const updatedInput: Record<string, unknown> = usesCommandLine
+    ? { ...toolInput, CommandLine: filteredCmd }
+    : { ...toolInput, command: filteredCmd };
 
   return { type: "mutate", updatedInput };
 }
@@ -171,16 +169,25 @@ function main() {
 
   const parsed: PreToolUseInput = JSON.parse(raw);
 
-  const vendor = detectVendor(parsed);
+  const vendor = detectVendorFromInput(parsed, "tool", import.meta.filename);
   const projectDir = getProjectDir(vendor, parsed);
 
+  const toolCall = parsed.toolCall as
+    | { name?: string; args?: Record<string, unknown> }
+    | undefined;
+  const toolName =
+    parsed.tool_name ||
+    (typeof toolCall?.name === "string" ? toolCall.name : "");
   // Build canonical HookInput and delegate to run() — single logic source.
   const toolInput: Record<string, unknown> = {
-    ...(parsed.tool_input ?? {}),
+    ...(parsed.tool_input ??
+      (toolCall?.args && typeof toolCall.args === "object"
+        ? toolCall.args
+        : {})),
   };
   const hookInput: HookInput = {
     kind: "pre_tool",
-    toolName: parsed.tool_name,
+    toolName,
     toolInput,
     cwd: projectDir,
   };

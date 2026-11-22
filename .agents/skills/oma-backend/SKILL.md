@@ -1,6 +1,6 @@
 ---
 name: oma-backend
-description: Backend specialist for APIs, databases, authentication with clean architecture (Repository/Service/Router pattern). Use for API, endpoint, REST, database, server, migration, and auth work.
+description: "Implement server APIs, authentication, and application data access. Schema modeling and query tuning use oma-db."
 ---
 
 # Backend Agent - API & Server Specialist
@@ -100,10 +100,11 @@ Implement or review backend APIs, authentication, database integration, server-s
 - Stack-specific templates and snippets when present
 
 ### Canonical workflow path
-```bash
-rg --files
-rg "route|router|service|repository|model|schema|migration" .
-```
+Use the configured code-intelligence provider to locate files and inspect symbols
+or content. For Serena, use `find_file`, `search_for_pattern`,
+`get_symbols_overview`, and `find_symbol`. Native search is limited to the
+provider exclusions and non-code paths permitted by the project's search policy.
+
 
 <!-- oma-docs:ignore-start -->
 Then run the project's discovered verification commands, usually lint/typecheck/tests and migrations when schema changes are involved. Prefer `stack/stack.yaml` `verify:` commands when present.
@@ -129,6 +130,7 @@ Then run the project's discovered verification commands, usually lint/typecheck/
 - May require generated clients or migration artifacts.
 
 ### Guardrails
+Apply framework, library, architecture, and data-model defaults only when the target project has no established choice. Scoped edits do not authorize a stack migration or unrelated infrastructure.
 
 1. **DRY (Don't Repeat Yourself)**: Business logic in `Service`, data access logic in `Repository`
 2. **SOLID**:
@@ -166,7 +168,7 @@ Router (HTTP) → Service (Business Logic) → Repository (Data Access) → Mode
 8. **Explicit ORM loading strategy**: do not rely on default relation loading when query shape matters
 9. **Explicit transaction boundaries**: group one business operation into one request/service-scoped unit of work
 10. **Safe ORM lifecycle**: do not share mutable ORM session/entity manager/client objects across concurrent work unless the ORM explicitly supports it
-11. **Config from environment, with graceful fallback**: DB URLs, API keys, secrets, and feature flags come from env vars or secret managers; never hardcode in source. When integrating a third-party API (OpenAI, Anthropic, Stripe, etc.), write BOTH paths: (a) real call when the env key is present, (b) deterministic local fallback when absent, marked with `// TODO(oma-deferred): integrate <vendor> when key is provisioned`. Fallback-only leaves the spec unmet; real-call-only breaks demos when the key is missing
+11. **Validate required configuration**: DB URLs, API keys, secrets, and feature flags come from environment variables or secret managers. Missing credentials fail clearly in default and production modes. Deterministic fixtures require an explicitly selected test/demo mode; label simulated results and never treat simulated payment, authentication, mail, or other effects as completed real operations.
 12. **Stateless services**: no in-memory session or user state between requests; use external stores (DB, Redis, cache) for shared state
 13. **Backing services as resources**: DB, queue, cache, mail are swappable attached resources connected via config; Repository layer must not assume a specific instance
 
@@ -179,25 +181,21 @@ Router (HTTP) → Service (Business Logic) → Repository (Data Access) → Mode
 ### Stack-Specific Reference
 
 <!-- oma-docs:ignore-start -->
-- **Stack manifest (SSOT)**: `stack/stack.yaml`: structured declaration (`language`, `framework`, `orm`) and `verify:` contract consumed by `oma verify backend`. Schema: `variants/stack.schema.json`.
+- **Stack manifest (SSOT)**: `stack/stack.yaml`: structured declaration (`language`, `framework`, `orm`) and `verify:` contract consumed by `oma verify agent backend`. Schema: `variants/stack.schema.json`.
 - Tech stack narrative: `stack/tech-stack.md`: human-readable reference only; `stack.yaml` wins on conflict.
 - Code snippets (copy-paste ready): `stack/snippets.md`
 - API template: `stack/api-template.*`
 <!-- oma-docs:ignore-end -->
 
 ## References
+- Local code tools: `../_shared/core/code-intelligence.md` (code search/navigation)
 
-Follow `resources/execution-protocol.md` step by step.
-Use `resources/orm-reference.md` when the task involves ORM query performance, relationship loading, transactions, session/client lifecycle, or N+1 analysis.
-Before submitting, run `resources/checklist.md`.
-Vendor-specific execution protocols are injected automatically by `oma agent spawn`.
-Source files live under `../_shared/runtime/execution-protocols/{vendor}.md`.
-- Execution steps: `resources/execution-protocol.md`
-- Checklist: `resources/checklist.md`
+- Execution steps (follow for the selected task): `resources/execution-protocol.md`
+- Checklist (run before handoff): `resources/checklist.md`
 - ORM reference: `resources/orm-reference.md`
 - Error recovery: `resources/error-playbook.md`
 - Context loading: `../_shared/core/context-loading.md`
 - Clarification: `../_shared/core/clarification-protocol.md`
 - Context budget: `../_shared/core/context-budget.md`
-- Lessons learned: `../_shared/core/lessons-learned.md`
+- Lessons learned: `../_shared/core/lessons-learned.md` (matching prior failure or requested retrospective)
 - Observability handoff: `../oma-observability/SKILL.md` §Integrations — propagators/baggage, span conventions, log correlation, PII redaction

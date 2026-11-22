@@ -2,10 +2,10 @@
 /**
  * oh-my-agent — HUD
  *
- * Lightweight status display for Claude Code / agy (statusLine): stdin =
- * vendor payload, stdout = ANSI text consumed by the native status-line
- * renderer. Field names line up across both vendors; vendor-specific extras
- * are best-effort.
+ * Lightweight status display for Claude Code / Qwen Code / agy (statusLine):
+ * stdin = vendor payload, stdout = ANSI text consumed by the native
+ * status-line renderer. Field names line up across vendors; vendor-specific
+ * extras are best-effort.
  *
  * Set `OMA_HUD_DEBUG=1` to dump the raw stdin payload to
  * `<hookDir>/../last-hud-input.json` for schema reverse-engineering.
@@ -39,6 +39,8 @@ interface RateLimit {
 
 interface StatuslineStdin {
   cwd?: string;
+  /** Claude / Qwen: the session the statusline is drawn for. */
+  session_id?: string;
   model?: { id?: string; display_name?: string };
   context_window?: {
     context_window_size?: number;
@@ -76,24 +78,46 @@ interface StatuslineStdin {
   background_tasks?: Array<{ name?: string; status?: string; index?: number }>;
   pending_input_count?: number;
   tool_confirmation_pending?: boolean;
+  /** Qwen Code: present only while vim keybindings are enabled. */
+  vim?: { mode?: string };
   terminal_width?: number;
 }
 
-function readStdin(): StatuslineStdin {
-  const raw = (() => {
+async function readStdin(
+  timeoutMs = STDIN_TIMEOUT_MS,
+): Promise<StatuslineStdin> {
+  // Some vendors (notably agy) spawn the statusline without closing the stdin
+  // pipe; a synchronous readFileSync(0) then blocks until the vendor's
+  // statusline timeout SIGKILLs the process. Read asynchronously and give up
+  // after timeoutMs, letting main() fall back to a payload-less line.
+  const read = (async () => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(chunk as Buffer);
+    }
+    const raw = Buffer.concat(chunks).toString("utf-8");
+    maybeDumpDebugPayload(raw);
     try {
-      return readFileSync(0, "utf-8");
+      return JSON.parse(raw) as StatuslineStdin;
     } catch {
-      return "";
+      return {};
     }
   })();
-  maybeDumpDebugPayload(raw);
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("stdin timeout")), timeoutMs);
+  });
+
   try {
-    return JSON.parse(raw);
-  } catch {
-    return {};
+    return await Promise.race([read, timeout]);
+  } finally {
+    clearTimeout(timer);
   }
 }
+
+/** Max time to wait for the vendor to deliver (and close) the stdin payload. */
+const STDIN_TIMEOUT_MS = 800;
 
 /**
  * When `OMA_HUD_DEBUG=1`, capture the raw stdin payload to a sibling file so
@@ -116,26 +140,49 @@ function maybeDumpDebugPayload(raw: string): void {
 
 // ── Active Workflow Detection ─────────────────────────────────
 
-function getActiveWorkflow(projectDir: string): ModeState | null {
+const STALE_WORKFLOW_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * The persistent workflow to show. With a session id (Claude/Qwen
+ * `session_id`, agy `conversation_id`) only that session's state file counts,
+ * so a concurrent session's workflow never appears here. Each file is judged
+ * on its own: one corrupt or half-written file cannot hide the others.
+ */
+export function getActiveWorkflow(
+  projectDir: string,
+  sessionId?: string,
+): ModeState | null {
   const stateDir = join(projectDir, ".agents", "state");
   if (!existsSync(stateDir)) return null;
 
+  let files: string[];
   try {
-    for (const file of readdirSync(stateDir)) {
-      if (!file.endsWith(".json") || !file.includes("-state-")) continue;
-      const content = readFileSync(join(stateDir, file), "utf-8");
-      const state: ModeState = JSON.parse(content);
-
-      // Skip stale (>2h)
-      const elapsed = Date.now() - new Date(state.activatedAt).getTime();
-      if (elapsed > 2 * 60 * 60 * 1000) continue;
-
-      return state;
-    }
+    files = readdirSync(stateDir);
   } catch {
-    // ignore
+    return null;
+  }
+  const sessionSuffix = sessionId ? `-state-${sessionId}.json` : null;
+  for (const file of files) {
+    if (!file.endsWith(".json") || !file.includes("-state-")) continue;
+    if (sessionSuffix && !file.endsWith(sessionSuffix)) continue;
+    let state: ModeState;
+    try {
+      state = JSON.parse(readFileSync(join(stateDir, file), "utf-8"));
+    } catch {
+      continue;
+    }
+    if (!state || typeof state.workflow !== "string") continue;
+    const activatedMs = new Date(state.activatedAt).getTime();
+    if (!Number.isFinite(activatedMs)) continue;
+    if (Date.now() - activatedMs > STALE_WORKFLOW_MS) continue;
+    return state;
   }
   return null;
+}
+
+function statuslineSessionId(input: StatuslineStdin): string | undefined {
+  const id = input.session_id ?? input.conversation_id;
+  return typeof id === "string" && id.trim() ? id : undefined;
 }
 
 // ── Model Name Shortener ──────────────────────────────────────
@@ -149,18 +196,21 @@ export function shortModel(model?: {
   // Claude: "Claude Opus 4.6 (1M context)" → "Opus 4.6"
   const claude = name.match(/(Opus|Sonnet|Haiku)[\s.]*([\d.]*)/i);
   if (claude) return `${claude[1]}${claude[2] ? ` ${claude[2]}` : ""}`;
-  // Gemini / agy: "Gemini 3.6 Flash (High)" → "Gemini 3.6 Flash"
+  // Gemini / agy: "Gemini 3.6 Flash (High)" or "Gemini 2.5 Flash Lite" → "Gemini 3.6 Flash"
   const gemini = name.match(
-    /(Gemini)\s+([\d.]+)\s+(Pro|Flash|Ultra|Nano|Thinking)/i,
+    /(Gemini)\s+([\d.]+)\s+(Flash\s+Lite|Pro|Flash|Ultra|Nano|Thinking|Argon)/i,
   );
   if (gemini) return `${gemini[1]} ${gemini[2]} ${gemini[3]}`;
-  // Gemini / agy slug: "antigravity/gemini-3.6-flash" → "Gemini 3.6 Flash"
+  // Gemini / agy slug: "antigravity/gemini-3.6-flash" or "gemini-2.5-flash-lite"
   const geminiSlug = name.match(
-    /gemini-([\d.]+)-(pro|flash|ultra|nano|thinking)/i,
+    /gemini-([\d.]+)-(flash-lite|pro|flash|ultra|nano|thinking|argon)/i,
   );
   if (geminiSlug) {
-    const capType =
-      geminiSlug[2].charAt(0).toUpperCase() + geminiSlug[2].slice(1);
+    const type = geminiSlug[2] ?? "";
+    const capType = type
+      .split("-")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(" ");
     return `Gemini ${geminiSlug[1]} ${capType}`;
   }
   return name.split("/").pop()?.slice(0, 20) || "";
@@ -197,6 +247,8 @@ function formatTokens(n: number): string {
 export function buildClaudeStatusline(input: StatuslineStdin): string {
   const projectDir =
     process.env.CLAUDE_PROJECT_DIR ||
+    process.env.QWEN_PROJECT_DIR ||
+    input.workspace?.project_dir ||
     input.cwd ||
     input.workspace?.current_dir ||
     process.cwd();
@@ -208,6 +260,9 @@ export function buildClaudeStatusline(input: StatuslineStdin): string {
   // 2. Model
   const model = shortModel(input.model);
   if (model) parts.push(dim(model));
+
+  // 2b. Qwen Code vim mode (absent unless vim keybindings are enabled).
+  if (input.vim?.mode) parts.push(dim(`vim:${input.vim.mode}`));
 
   // 3. Context %
   const ctxPct = input.context_window?.used_percentage;
@@ -273,8 +328,8 @@ export function buildClaudeStatusline(input: StatuslineStdin): string {
     parts.push(dim("sandbox"));
   }
 
-  // 8. Active workflow
-  const workflow = getActiveWorkflow(projectDir);
+  // 8. Active workflow (this session's only, when the vendor says which)
+  const workflow = getActiveWorkflow(projectDir, statuslineSessionId(input));
   if (workflow) {
     parts.push(yellow(`${workflow.workflow}:${workflow.reinforcementCount}`));
   }
@@ -292,8 +347,19 @@ export function buildClaudeStatusline(input: StatuslineStdin): string {
 
 // ── Main ──────────────────────────────────────────────────────
 
-function main() {
-  process.stdout.write(buildClaudeStatusline(readStdin()));
+async function main() {
+  let out: string;
+  try {
+    out = buildClaudeStatusline(await readStdin());
+  } catch {
+    // stdin timed out — a payload-less line beats a killed statusline
+    out = buildClaudeStatusline({});
+  }
+  // Exit explicitly: after a timeout the pending stdin read would otherwise
+  // keep the event loop (and the process) alive.
+  process.stdout.write(out, () => process.exit(0));
 }
 
-main();
+if (import.meta.main) {
+  void main();
+}

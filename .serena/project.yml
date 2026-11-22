@@ -6,7 +6,7 @@ ignore_all_files_in_gitignore: true
 ignored_paths:
 - .serena/cache
 read_only: false
-excluded_tools: 
+excluded_tools:
 - write_memory
 - read_memory
 - list_memories

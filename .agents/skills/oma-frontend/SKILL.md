@@ -1,6 +1,6 @@
 ---
 name: oma-frontend
-description: Frontend specialist for React, Next.js, Angular, TypeScript with FSD-lite architecture, shadcn/ui, and design system alignment. Use for UI, component, page, layout, CSS, Tailwind, shadcn, Angular, and RxJS work.
+description: "Implement or modify web UI in React, Next.js, or Angular. Use for components, pages, styles, forms, and frontend state or data flows."
 ---
 
 # Frontend Agent - UI/UX Specialist
@@ -42,6 +42,7 @@ Build, modify, and verify React/Next.js or Angular TypeScript user interfaces th
 - React, Next.js, TypeScript, TailwindCSS v4, and `shadcn/ui` — or Angular + signals + RxJS in Angular projects (`resources/angular-rules.md`)
 - Project sources of truth such as `packages/design-tokens`, `packages/i18n`, and shared utilities
 - `resources/execution-protocol.md`, `resources/checklist.md`, snippets, and Tailwind rules
+- Conditional visual implementation routes and shared interaction-quality guidance; load only for the affected capability.
 
 ### Control-flow features
 - Branches by server/client component boundary, responsive state, component library availability, and i18n/token requirements
@@ -67,6 +68,8 @@ Build, modify, and verify React/Next.js or Angular TypeScript user interfaces th
 - If UI text is user-facing and i18n exists, add strings through the i18n source of truth.
 - If interaction or hooks are needed, mark the boundary as Client Component.
 - If backend contracts are missing, coordinate with backend/API planning.
+- For a new or substantially changed admin console, dashboard, SaaS product UI, or internal tool, recommend a post-implementation `oma-design` review through `../oma-design/resources/product-interface-review.md`. This review is advisory unless the task explicitly requires design approval.
+- For a requested GPU effect, video-scroll scene, or selected GSAP implementation, use the matching conditional extension, and record it with subject `frontend.route-selection` per `../_shared/runtime/route-selection.md`.
 
 ### Failure and recovery
 - If design tokens or i18n sources are missing, state assumptions and follow existing local patterns.
@@ -97,10 +100,15 @@ Build, modify, and verify React/Next.js or Angular TypeScript user interfaces th
 - Lint, typecheck, tests, and browser inspection when applicable
 
 ### Canonical workflow path
-```bash
-rg --files
-rg "components/ui|shadcn|use client|generateMetadata|useQuery|i18n|design-tokens" .
-```
+Use the configured code-intelligence provider to locate files and inspect symbols
+or content. For Serena, use `find_file`, `search_for_pattern`,
+`get_symbols_overview`, and `find_symbol`. Native search is limited to the
+provider exclusions and non-code paths permitted by the project's search policy.
+
+
+For a specialized visual capability, use `resources/specialized-visual-implementation.md`.
+For affected motion, touch, component feedback, or interaction performance, use
+`../_shared/ui-interaction-quality.md`. Ordinary UI work does not preload these paths.
 
 Then run the project's frontend verification commands, typically lint, typecheck, tests, and browser/responsive checks when the UI changes.
 
@@ -122,14 +130,16 @@ Then run the project's frontend verification commands, typically lint, typecheck
 - Does not edit `components/ui/*` directly.
 
 ### Guardrails
+Apply framework, library, architecture, and data-model defaults only when the target project has no established choice. Scoped edits do not authorize a stack migration or unrelated infrastructure.
 1. Follow the existing React, Next.js, TypeScript, and FSD-lite architecture in the target project.
 2. Use `shadcn/ui` primitives and wrappers for UI work; treat `components/ui/*` as read-only.
 3. Keep server/client boundaries explicit: Server Components for static/layout work, Client Components for interaction and hooks.
 4. Use project sources of truth for design tokens, i18n strings, and shared utilities before adding local alternatives.
 5. Run the execution checklist before handoff and include relevant verification results.
 6. **Self-describing file names**: every new file follows the File Naming convention in `../../rules/frontend.md` §Naming Conventions — domain + role readable from the basename alone (`order-summary-card.tsx`, `use-order-polling.ts`, `cart.atoms.ts`). Grab-bag names (`utils.ts`, `helpers.ts`, `misc.ts`) and version suffixes (`*-v2`, `*-final`) are banned.
-7. **Next.js 16 `proxy.ts` is mandatory; `middleware.ts` is BANNED**: this project is Next.js 16+. `middleware.ts` is NOT "deprecated"; it is forbidden, touch it and you die. The canonical request-proxy / auth-gate file is `proxy.ts` (root or `src/`) exporting a `proxy` function. NEVER create, recommend, suggest, or "restore" `middleware.ts`. NEVER flag `proxy.ts` as dead code, unused, or not-wired. Any such finding is a fatal self-error: retract it immediately and write `proxy.ts`.
-8. **Angular projects follow `resources/angular-rules.md`**: standalone components + `OnPush` + signals-first, `inject()` DI, lazy routes, new control flow. **Any non-trivial RxJS pipeline MUST ship with a marble test (`TestScheduler` from `rxjs/testing`)** — a stream without a marble test fails review. React/Next.js-specific rules (shadcn workflow, `proxy.ts`, Libraries table below) do not apply in Angular projects.
+7. **Request proxy convention**: when the target project uses Next.js 16+ with `proxy.ts`, preserve that convention. Check the installed framework version and routing before recommending a file rename. Diagnose wiring from code and tests.
+8. Use the project's Link prefetch policy; adjust specific routes only when measured behavior or the task requires it.
+9. **Angular projects follow `resources/angular-rules.md`**: standalone components + `OnPush` + signals-first, `inject()` DI, lazy routes, new control flow. **Any non-trivial RxJS pipeline MUST ship with a marble test (`TestScheduler` from `rxjs/testing`)** — a stream without a marble test fails review. React/Next.js-specific rules (shadcn workflow, `proxy.ts`, Libraries table below) do not apply in Angular projects.
 
 ### Libraries
 
@@ -137,7 +147,7 @@ React/Next.js projects only — Angular projects use the Angular-native equivale
 
 | Category | Library |
 |----------|---------|
-| Framework | `next@16+` (App Router) + `react@19+`; `next < 16` is BANNED |
+| Framework | New-project default: `next@16+` (App Router) + `react@19+`; preserve existing project versions |
 | Date | `luxon` |
 | Styling | `TailwindCSS v4` + `shadcn/ui` (Base UI engine; see `resources/tech-stack.md`) |
 | Hooks | `ahooks` (default) or `@mantine/hooks` (standalone, SSR-safe; no Mantine UI required); pre-made hooks preferred; pick one per project, don't mix |
@@ -146,9 +156,9 @@ React/Next.js projects only — Angular projects use the Angular-native equivale
 | State (URL) | `nuqs` |
 | State (Server) | `TanStack Query`; default is `orval`-generated hooks from the OpenAPI spec (`client: react-query`); hand-write hooks only for spec-less endpoints (see `resources/tech-stack.md` §Server State) |
 | State (Client) | `Jotai` or `Zustand` (intent-based, no default; minimize use — see `resources/tech-stack.md`) |
-| Forms | `@tanstack/react-form` (v1+; pass zod schemas directly via Standard Schema; `@tanstack/zod-form-adapter` is v0-only and BANNED) + `zod` (v4) |
-| Auth | `better-auth` (client SDK only; never import server library or database adapters) |
-| Animation | `motion`; import from `motion/react`. `framer-motion` (legacy package name) is BANNED. |
+| Forms | `@tanstack/react-form` (v1+; pass zod schemas directly via Standard Schema; do not add the v0-only `@tanstack/zod-form-adapter` to v1 projects) + `zod` (v4) |
+| Auth | `better-auth`; client code imports only the client SDK, never server libraries or database adapters |
+| Animation | New-project default: `motion` with imports from `motion/react`; preserve an existing animation library for scoped edits |
 
 ### Shadcn Workflow
 
@@ -179,7 +189,7 @@ React/Next.js projects only — Angular projects use the Angular-native equivale
 - **DESIGN.md** (project root): visual system source of truth; read Section 9 (Agent Prompt Guide) verbatim for component prompts when present
 - **Design Tokens**: `packages/design-tokens` (OKLCH); never hardcode colors
 - **i18n strings**: `packages/i18n`; never hardcode UI text
-- **Custom utilities**: check `es-toolkit` first; if implementing custom logic, >90% unit test coverage is mandatory
+- **Custom utilities**: check `es-toolkit` first; if implementing custom logic, use the project or task coverage target and risk-relevant tests
 
 ### Designer Collaboration
 
@@ -192,7 +202,7 @@ Project stack conventions live in dedicated files. **Read these before coding**;
 
 | File | Owns |
 |---|---|
-| `resources/tech-stack.md` | Framework versions, Next.js 16 `proxy.ts` + React Compiler conventions, Server Actions vs TanStack Query mutation policy, Serena shortcuts |
+| `resources/tech-stack.md` | Framework versions, Next.js 16 `proxy.ts` + React Compiler conventions, Server Actions vs TanStack Query mutation policy, optional provider examples |
 | `resources/tailwind-rules.md` | Design tokens, focus states, Tailwind v4 `@theme` syntax |
 | `resources/snippets.md` | React 19 hook patterns, TanStack Query/Form, a11y card |
 | `resources/angular-rules.md` | Angular standalone/OnPush/signals conventions, RxJS marble-test policy (MANDATORY for streams) |
@@ -200,21 +210,17 @@ Project stack conventions live in dedicated files. **Read these before coding**;
 To extend: add `resources/<name>.md` and append a row above.
 
 ## References
-
-1. Follow `resources/execution-protocol.md` step by step.
-2. Before submitting, run `resources/checklist.md`.
-Vendor-specific execution protocols are injected automatically by `oma agent spawn`.
-Source files live under `../_shared/runtime/execution-protocols/{vendor}.md`.
+- `../oma-design/resources/product-interface-review.md`: recommended design review after substantial product-interface implementation.
+- Specialized visual implementation: `resources/specialized-visual-implementation.md` (requested CanvasUI GPU effect, Scroll World scene, or selected GSAP implementation)
+- Interaction quality: `../_shared/ui-interaction-quality.md` (motion, feedback, touch, interruption, or performance changes)
+- Local code tools: `../_shared/core/code-intelligence.md` (code search/navigation)
 
 - Project frontend rules (MUST load before review/implementation): `../../rules/frontend.md`
-- Execution steps: `resources/execution-protocol.md`
-- Checklist: `resources/checklist.md`
+- Execution steps (follow for the selected task): `resources/execution-protocol.md`
+- Checklist (run before handoff): `resources/checklist.md`
 - Error recovery: `resources/error-playbook.md`
 - Context loading: `../_shared/core/context-loading.md`
 - Clarification: `../_shared/core/clarification-protocol.md`
 - Context budget: `../_shared/core/context-budget.md`
-- Lessons learned: `../_shared/core/lessons-learned.md`
+- Lessons learned: `../_shared/core/lessons-learned.md` (matching prior failure or requested retrospective)
 - Observability handoff: `../oma-observability/SKILL.md` §Integrations — Core Web Vitals, SSR→client trace propagation, INP profiling
-
-> [!IMPORTANT]
-> Treat `components/ui/*` as read-only. Create wrappers for customization.

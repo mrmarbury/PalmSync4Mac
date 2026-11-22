@@ -13,8 +13,10 @@ Rules for determining and applying response language across agents and workflows
 Response language is determined by the following priority:
 
 1. **User prompt language** — if the user writes in a specific language, respond in that language
-2. **`oma-config.yaml`** — `language` field in `.agents/oma-config.yaml`
-3. **Fallback** — English (en) if neither of the above is set
+2. **Configured `language`** — fallback for prompts that carry no language signal (a bare command, code only, or a machine-generated task)
+3. **English (en)** — when neither of the above applies
+
+`language` is a fallback, not an override: it never outranks the language the user writes in. It is also not enforced at runtime — OMA carries it into the generated project instructions (the `AGENTS.md` / `CLAUDE.md` line), and each host agent applies it. The only CLI surface that reads it directly is `oma image` (ko/en console messages); `oma install` uses it as the prompt default.
 
 ```yaml
 # .agents/oma-config.yaml
@@ -23,7 +25,7 @@ language: ko  # ko, en, ja, zh, ...
 
 ## Translation Voice
 
-When translating user-facing content, the `translation_voice` field in `.agents/oma-config.yaml` controls global rhythm and formality. It is applied on top of `oma-translator` content-type persona routing.
+When translating user-facing content, the `translation_voice` field in `.agents/oma-config.yaml` controls global rhythm and formality. It is applied on top of `oma-translation` content-type persona routing.
 
 | Value | Effect |
 |---|---|
@@ -31,7 +33,7 @@ When translating user-facing content, the `translation_voice` field in `.agents/
 | `balanced` (default) | content-type defaults — fragments only in label/cell positions |
 | `interpreter` | punchy, audience-first, spoken cadence; fragments allowed when natural |
 
-Workflows that translate user-facing content should respect this setting via the `oma-translator` skill rather than hardcoding a tone.
+Workflows that translate user-facing content should respect this setting via the `oma-translation` skill rather than hardcoding a tone.
 
 ## What to Localize
 
@@ -64,14 +66,14 @@ Workflows that translate user-facing content should respect this setting via the
 3. **Inline code (`backtick`) is never translated**
 4. **Parenthetical supplement allowed** — for unfamiliar terms, use `translated(original)` format once
 5. **Register consistency** — match the target language's appropriate register for the context
-6. **Translation tasks** — for translating UI strings, docs, or marketing copy, use the `/oma-translator` skill
+6. **Translation tasks** — for translating UI strings, docs, or marketing copy, use the `/oma-translation` skill
 
 ## Workflow Integration
 
-All workflows follow these rules. The following line in existing workflows references this guide:
+All workflows follow these rules. The line at the top of each workflow restates the priority:
 
 ```
-- **Response language follows `language` setting in `.agents/oma-config.yaml` if configured.**
+- **Response language: the user's prompt language first, then `language` in `.agents/oma-config.yaml`, then English.**
 ```
 
 > ARB-based localization (ARB as the single cross-platform source of truth for

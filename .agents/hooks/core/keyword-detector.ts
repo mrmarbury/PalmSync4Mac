@@ -21,13 +21,14 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { agyConversationId, isAgyInput, readAgyPrompt } from "./agy-input.ts";
+import { agyConversationId, readAgyPrompt } from "./agy-input.ts";
 import { UNKNOWN_SESSION_ID, VENDORS } from "./constants.ts";
-import { clearGrokContext } from "./grok-context.ts";
 import { makePromptOutput } from "./hook-output.ts";
 import { isRelayedAgentMessage, normalizePromptInput } from "./prompt-input.ts";
+import { withStateLock } from "./state-lock.ts";
+import { atomicWriteJson } from "./state-marker.ts";
 // triggers.json is imported statically: the bundler inlines it into the oma
-// binary (bundled `oma hook` path needs no file on disk), while a standalone
+// binary (bundled `oma hook run` path needs no file on disk), while a standalone
 // bun run resolves the sibling file next to this module (pi / direct run).
 import embeddedTriggers from "./triggers.json" with { type: "json" };
 import type {
@@ -35,9 +36,8 @@ import type {
   HandlerResult,
   HookInput,
   ModeState,
-  Vendor,
 } from "./types.ts";
-import { getProjectDir, inferVendorFromScriptPath } from "./vendor-detect.ts";
+import { detectVendorFromInput, getProjectDir } from "./vendor-detect.ts";
 
 // ── Unicode normalization ─────────────────────────────────────
 
@@ -64,7 +64,10 @@ export function normalizeForMatching(text: string): string {
  *
  * Third-party harnesses (omc, omx, omo) are intentionally NOT included: they
  * are separate projects, not host CLIs a user would invoke from an Oma
- * session. opencode is also not a supported vendor in this codebase.
+ * session. opencode IS a supported vendor, but as an extension-class vendor
+ * (EXTENSION_VENDORS in cli/constants/vendors.ts): its hooks load as
+ * in-process extensions outside VENDORS/HOOK_VENDORS, so it is intentionally
+ * absent from this brand list.
  */
 const CLI_INVOCATION_BRANDS = ["oma", ...VENDORS] as const;
 const CLI_INVOCATION_SIGNALS = [
@@ -79,6 +82,8 @@ const CLI_INVOCATION_SIGNALS = [
 
 const BRANDS_RE_SOURCE = CLI_INVOCATION_BRANDS.join("|");
 const SIGNALS_RE_SOURCE = CLI_INVOCATION_SIGNALS.join("|");
+// Require a resource and action so conversational mentions of OMA still trigger.
+const OMA_RESOURCE_ACTION = String.raw`oma\s+(?:schedule|memory|model|state|goal|ralph|auth|dashboard|hook|skill|slide|image|video|vault|search|serena)\s+(?:create|list|delete|run|sync|daemon|service|retry|maintain|init|setup|status|import|gc|upgrade|check|probe|propose|get|activate|archive|purge|repair|verify|emit|decisions|inject-log|summary|heal-check|set|terminal|web|audit|lint|eval|optimize|preview|export|asset|style|vendor|provider|api|rss|reaper)(?=\s|$)`;
 
 /**
  * Matches CLI invocations at the start of the prompt.
@@ -98,24 +103,26 @@ const SIGNALS_RE_SOURCE = CLI_INVOCATION_SIGNALS.join("|");
  *   2. Bare form: '<brand>\s+<signal>' where <signal> is one of the
  *      enumerated subcommand verbs (agent / auto / exec / run / spawn),
  *      a --flag, or a colon-namespaced subcommand ('agent:spawn').
- *      Examples: 'oma agent:spawn brainstorm', 'claude --help',
+ *      Examples: 'oma agent spawn brainstorm', 'claude --help',
  *      'codex exec --workflow ralph', 'cursor agent', 'qwen run'.
  */
 export const CLI_INVOCATION_AT_START = new RegExp(
-  `^\\s*(?:\\/(?:${BRANDS_RE_SOURCE}):|(?:${BRANDS_RE_SOURCE})\\s+(?:${SIGNALS_RE_SOURCE}))`,
+  `^\\s*(?:${OMA_RESOURCE_ACTION}|\\/(?:${BRANDS_RE_SOURCE}):|(?:${BRANDS_RE_SOURCE})\\s+(?:${SIGNALS_RE_SOURCE}))`,
   "i",
 );
 
 /**
  * Per-workflow skip predicates. A workflow listed here will be skipped when
  * its predicate returns true for the (already-normalized) cleaned text.
- * The map is intentionally empty at boot — populate it to add workflow-specific
- * overrides without restructuring the matching loop.
+ * Visual design requires a visual target; generic design verbs also describe
+ * skill authoring, APIs, schemas, and other nonvisual work.
  */
 export const KEYWORD_SKIP_PREDICATES: Record<
   string,
   (text: string) => boolean
-> = {};
+> = {
+  design: (text) => !hasVisualDesignContext(text),
+};
 
 /**
  * Default predicate: skip ALL workflow triggers when the prompt starts with a
@@ -207,7 +214,8 @@ export function loadKwState(projectDir: string): KeywordDetectorState {
 }
 
 /**
- * Save reinforcement state to disk.
+ * Save reinforcement state to disk under the cross-process state lock (M12),
+ * with an atomic tmp+rename write so readers never observe a torn file.
  */
 export function saveKwState(
   projectDir: string,
@@ -215,9 +223,37 @@ export function saveKwState(
 ): void {
   try {
     const filePath = getKwStateFilePath(projectDir);
-    writeFileSync(filePath, JSON.stringify(state, null, 2));
+    withStateLock(`${filePath}.lock`, () => {
+      atomicWriteJson(filePath, state);
+    });
   } catch {
     // Non-fatal — reinforcement suppression is best-effort
+  }
+}
+
+/**
+ * Locked read-modify-write of the reinforcement state (M12). Two concurrent
+ * sessions doing load→record→save would otherwise lose one session's trigger
+ * record. The fresh read happens INSIDE the lock so concurrent records merge.
+ * Best-effort: on lock-budget exhaustion, degrade to the on-disk state rather
+ * than throwing into the vendor prompt pipeline.
+ */
+export function updateKwState(
+  projectDir: string,
+  mutate: (state: KeywordDetectorState) => KeywordDetectorState,
+): KeywordDetectorState {
+  const filePath = getKwStateFilePath(projectDir);
+  try {
+    return withStateLock(`${filePath}.lock`, () => {
+      const next = mutate(loadKwState(projectDir));
+      atomicWriteJson(filePath, next);
+      return next;
+    });
+  } catch {
+    process.stderr.write(
+      "[oma] keyword-detector state lock busy; skipping reinforcement record\n",
+    );
+    return loadKwState(projectDir);
   }
 }
 
@@ -272,40 +308,6 @@ export function recordKwTrigger(
 
 // ── Vendor Detection ──────────────────────────────────────────
 
-function detectVendor(input: Record<string, unknown>): Vendor {
-  const event = input.hook_event_name as string | undefined;
-  const hookEventName = input.hookEventName as string | undefined;
-  const byScriptPath = inferVendorFromScriptPath(import.meta.filename);
-  if (byScriptPath) return byScriptPath;
-
-  // agy (Antigravity) sends no hook_event_name; detect by its stdin shape.
-  if (isAgyInput(input)) return "antigravity";
-
-  // Grok uses hookEventName (e.g. "user_prompt_submit") + GROK_* env vars
-  if (process.env.GROK_WORKSPACE_ROOT || hookEventName?.includes("prompt")) {
-    // Prefer explicit grok signal; fall through to other checks only if ambiguous
-    if (process.env.GROK_WORKSPACE_ROOT) return "grok";
-  }
-
-  if (
-    process.env.KIRO_PROJECT_DIR ||
-    event === "userPromptSubmit" ||
-    hookEventName === "userPromptSubmit"
-  ) {
-    return "kiro";
-  }
-
-  if (event === "PreInvocation") return "antigravity";
-  if (event === "beforeSubmitPrompt") return "cursor";
-  if (event === "UserPromptSubmit") {
-    // Codex uses snake_case session_id, Claude uses camelCase sessionId
-    if ("session_id" in input && !("sessionId" in input)) return "codex";
-  }
-  // Qwen Code sets QWEN_PROJECT_DIR; Claude sets CLAUDE_PROJECT_DIR
-  if (process.env.QWEN_PROJECT_DIR) return "qwen";
-  return "claude";
-}
-
 function getSessionId(input: Record<string, unknown>): string {
   return (
     (input.sessionId as string) ||
@@ -317,37 +319,32 @@ function getSessionId(input: Record<string, unknown>): string {
 
 // ── Config Loading ────────────────────────────────────────────
 
-interface TriggerConfig {
-  workflows: Record<
-    string,
-    {
-      persistent: boolean;
-      keywords: Record<string, string[]>;
-      patterns?: Record<string, string[]>;
-    }
-  >;
+export interface TriggerWorkflowDef {
+  persistent: boolean;
+  keywords: Record<string, string[]>;
+  patterns?: Record<string, string[]>;
+  /**
+   * Persistent workflows only: the subset of `keywords` that counts as an
+   * EXPLICIT invocation (the workflow's own name, e.g. "ultrawork", "ralph").
+   * Only an explicit match writes the persistent-mode state file the Stop
+   * hook enforces; any other keyword/pattern match just injects the workflow
+   * context as a suggestion. Every entry must also appear in `keywords`.
+   */
+  explicit?: string[];
+}
+
+export interface TriggerConfig {
+  workflows: Record<string, TriggerWorkflowDef>;
   informationalPatterns: Record<string, string[]>;
   excludedWorkflows: string[];
-  cjkScripts: string[];
   extensionRouting?: Record<string, string[]>;
 }
 
-/** Load the triggers config from the embedded (bundler-inlined / sibling-resolved) JSON. */
-function loadConfig(): TriggerConfig {
-  return structuredClone(embeddedTriggers) as TriggerConfig;
-}
-
-function detectLanguage(projectDir: string): string {
-  const prefsPath = join(projectDir, ".agents", "oma-config.yaml");
-  if (!existsSync(prefsPath)) return "en";
-  try {
-    const content = readFileSync(prefsPath, "utf-8");
-    const match = content.match(/^language:\s*(\S+)/m);
-    return match?.[1] ?? "en";
-  } catch {
-    return "en";
-  }
-}
+/**
+ * The embedded (bundler-inlined / sibling-resolved) triggers config. Read
+ * only — handlers never mutate it, so it is shared instead of cloned per call.
+ */
+const TRIGGERS = embeddedTriggers as unknown as TriggerConfig;
 
 // ── Pattern Builder ───────────────────────────────────────────
 
@@ -357,20 +354,35 @@ export function escapeRegex(s: string): string {
 
 /**
  * Merge a language-keyed keyword/pattern bank into a single flat list:
- * universal ("*") + English (the universal default) + the configured
- * language's own entries (skipped when lang === "en" to avoid duplicates).
- * Shared by buildPatterns and buildRawPatterns — both keyword banks and
- * pattern banks use this exact `Record<string, string[]>` shape.
+ * universal ("*") + English + EVERY other language's entries, deduped
+ * case-insensitively. Same rationale as RC4 (buildInformationalPatterns):
+ * users prompt in whichever language they think in — `language` in
+ * oma-config.yaml controls the RESPONSE language, not the prompt language —
+ * so gating by config language silently disabled e.g. every Korean trigger
+ * for `language: en` projects. A keyword written in language X can only
+ * match a prompt that contains X-script text (current banks are en/ko/ja/zh;
+ * if a Latin-script bank like es/fr is ever added, phrase distinctiveness is
+ * the gate instead), so merging all languages cannot fire on unrelated
+ * prompts. Shared by buildPatterns and buildRawPatterns — both keyword banks
+ * and pattern banks use this exact `Record<string, string[]>` shape.
  */
-export function collectLangEntries(
-  bank: Record<string, string[]>,
-  lang: string,
-): string[] {
-  return [
+export function collectLangEntries(bank: Record<string, string[]>): string[] {
+  const ordered = [
     ...(bank["*"] ?? []),
     ...(bank.en ?? []),
-    ...(lang !== "en" ? (bank[lang] ?? []) : []),
+    ...Object.entries(bank)
+      .filter(([key]) => key !== "*" && key !== "en")
+      .flatMap(([, entries]) => entries),
   ];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of ordered) {
+    const key = entry.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(entry);
+  }
+  return out;
 }
 
 /**
@@ -385,27 +397,96 @@ export interface KeywordPatternEntry {
   keyword: string;
 }
 
-export function buildPatternEntries(
-  keywords: Record<string, string[]>,
-  lang: string,
-  cjkScripts: string[],
-): KeywordPatternEntry[] {
-  return collectLangEntries(keywords, lang).map((kw) => {
-    const escaped = escapeRegex(kw).replace(/\s+/g, "\\s+");
-    const regex =
-      cjkScripts.includes(lang) || /[^\p{ASCII}]/u.test(kw)
-        ? new RegExp(escaped, "i")
-        : new RegExp(`(?:^|[^\\w-])${escaped}(?:$|[^\\w-])`, "i");
-    return { regex, keyword: kw };
-  });
+/**
+ * Compile one literal keyword. The boundary choice depends only on the
+ * keyword itself, never on the configured response language: ASCII keywords
+ * get hyphen-rejecting word boundaries, keywords containing non-ASCII text
+ * (CJK, accented Latin, Cyrillic) match as substrings because those scripts
+ * attach particles/inflections directly to the word. Gating this on
+ * `language: ko|ja|zh` used to strip the boundaries from EVERY ASCII keyword
+ * in CJK-configured projects, so "network" fired `work` and "preview" fired
+ * `review`. Hangul/kana/Han are not `\w`, so a boundary-wrapped ASCII keyword
+ * still matches when a CJK particle follows it ("ralph로").
+ */
+export function compileKeyword(kw: string): RegExp {
+  const escaped = escapeRegex(kw).replace(/\s+/g, "\\s+");
+  return /[^\p{ASCII}]/u.test(kw)
+    ? new RegExp(escaped, "i")
+    : new RegExp(`(?:^|[^\\w-])${escaped}(?:$|[^\\w-])`, "i");
 }
 
-export function buildPatterns(
+export function buildPatternEntries(
   keywords: Record<string, string[]>,
-  lang: string,
-  cjkScripts: string[],
-): RegExp[] {
-  return buildPatternEntries(keywords, lang, cjkScripts).map((e) => e.regex);
+): KeywordPatternEntry[] {
+  return collectLangEntries(keywords).map((kw) => ({
+    regex: compileKeyword(kw),
+    keyword: kw,
+  }));
+}
+
+export function buildPatterns(keywords: Record<string, string[]>): RegExp[] {
+  return buildPatternEntries(keywords).map((e) => e.regex);
+}
+
+// These words name the act of designing, but do not identify a visual target.
+// Keep the remaining visual vocabulary in triggers.json as the shared source.
+const GENERIC_DESIGN_KEYWORDS = new Set([
+  "design",
+  "디자인",
+  "디자인해줘",
+  "디자인 만들어줘",
+  "デザイン",
+  "デザインして",
+  "デザインを作って",
+  "设计",
+  "设计一下",
+  "做个设计",
+  "diseño",
+  "diseña",
+  "crea un diseño",
+  "haz el diseño",
+  "fais le design",
+  "crée un design",
+  "gestalte",
+  "erstelle ein design",
+  "mach das design",
+  "faça o design",
+  "crie um design",
+  "monte o design",
+  "дизайн",
+  "сделай дизайн",
+  "создай дизайн",
+  "оформи",
+  "ontwerp",
+  "ontwerp dit",
+  "maak een ontwerp",
+  "projekt",
+  "zaprojektuj",
+  "stwórz projekt",
+  "zrób design",
+]);
+
+const VISUAL_DESIGN_PATTERNS = [
+  /\bdesign\s+(?:(?:a|an|the|this|our|new)\s+)?(?:ui|ux)\b(?=\s*(?:$|[.!?,;]|\b(?:for|of|to|and)\b))/,
+  ...buildPatternEntries(TRIGGERS.workflows.design?.keywords ?? {})
+    .filter(
+      ({ keyword }) => !GENERIC_DESIGN_KEYWORDS.has(keyword.toLowerCase()),
+    )
+    .map(({ regex }) => regex),
+  ...buildPatterns({
+    en: ["screen", "page", "website", "interface"],
+    ko: ["화면", "페이지", "웹사이트", "UI를", "UX를"],
+    ja: ["画面", "ページ"],
+    zh: ["页面", "界面"],
+  }),
+];
+
+function hasVisualDesignContext(text: string): boolean {
+  if (/(?:^|\s)\/design(?![\w-])/.test(text)) return true;
+  return VISUAL_DESIGN_PATTERNS.some((pattern) => {
+    const match = pattern.exec(text);
+    return match !== null && !isTechnicalReference(text, match.index, match[0]);
+  });
 }
 
 /**
@@ -421,11 +502,10 @@ export interface RawPatternEntry {
 
 export function buildRawPatternEntries(
   patterns: Record<string, string[]> | undefined,
-  lang: string,
 ): RawPatternEntry[] {
   if (!patterns) return [];
   const compiled: RawPatternEntry[] = [];
-  for (const raw of collectLangEntries(patterns, lang)) {
+  for (const raw of collectLangEntries(patterns)) {
     try {
       compiled.push({ regex: new RegExp(raw, "iu"), source: raw });
     } catch {
@@ -443,9 +523,8 @@ export function buildRawPatternEntries(
  */
 export function buildRawPatterns(
   patterns: Record<string, string[]> | undefined,
-  lang: string,
 ): RegExp[] {
-  return buildRawPatternEntries(patterns, lang).map((e) => e.regex);
+  return buildRawPatternEntries(patterns).map((e) => e.regex);
 }
 
 export function buildInformationalPatterns(config: TriggerConfig): RegExp[] {
@@ -472,7 +551,14 @@ export function isInformationalContext(
 ): boolean {
   const windowStart = Math.max(0, matchIndex - 60);
   const window = prompt.slice(windowStart, matchIndex + 60);
-  return infoPatterns.some((p) => p.test(window));
+  if (infoPatterns.some((p) => p.test(window))) return true;
+  if (
+    /\?\s*$/.test(prompt.trim()) &&
+    infoPatterns.some((p) => p.test(prompt))
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -497,7 +583,7 @@ export function isPastedContent(
  * compound technical token is a reference to an ARTIFACT (CLI subcommand,
  * file, property, path segment), not a request to run the workflow:
  *
- *   `oma ralph:verify`            keyword + ':' + word  (CLI subcommand)
+ *   `oma ralph verify`            keyword + ':' + word  (CLI subcommand)
  *   `ralph.md`, `ralph.exec-tier` keyword + '.' + word  (file / property)
  *   `.agents/workflows/ralph`     word + '/' + keyword  (path segment)
  *
@@ -515,18 +601,46 @@ export function isTechnicalReference(
 ): boolean {
   // buildPatterns boundaries capture one non-word char on each side of the
   // keyword (unless the match touches ^ or $) — peel them off to locate the
-  // keyword span itself. CJK keywords compile without boundaries (lead/trail
-  // stay 0).
-  const lead = /^[^\w-]/.test(matchText) ? 1 : 0;
-  const trail = /[^\w-]$/.test(matchText) ? 1 : 0;
-  const kStart = matchIndex + lead;
-  const kEnd = matchIndex + matchText.length - trail;
-  const prev = kStart > 0 ? (text[kStart - 1] ?? "") : "";
-  const prev2 = kStart > 1 ? (text[kStart - 2] ?? "") : "";
-  const next = text[kEnd] ?? "";
-  const next2 = text[kEnd + 1] ?? "";
-  if ((next === ":" || next === ".") && /\w/.test(next2)) return true;
-  if (prev === "/" && /\w/.test(prev2)) return true;
+  // keyword token itself.
+  const m = matchText.match(/^([^\w-]?)(.*?)([^\w-]?)$/);
+  const leadingNonWord = m?.[1]?.length ?? 0;
+  const token = m?.[2] ?? matchText;
+  const tokenStart = matchIndex + leadingNonWord;
+  const tokenEnd = tokenStart + token.length;
+
+  const charBefore = tokenStart > 0 ? text[tokenStart - 1] : "";
+  const charAfter = tokenEnd < text.length ? text[tokenEnd] : "";
+
+  // 1. Path segment: preceded by '/' AND a word char before that slash
+  //    (excludes leading-slash invocations like "/ralph" where charBefore-1 is start or space).
+  if (
+    charBefore === "/" &&
+    tokenStart >= 2 &&
+    /[\w-]/.test(text[tokenStart - 2] ?? "")
+  ) {
+    return true;
+  }
+
+  // 2. CLI subcommand: followed by ':' AND a word char after that colon
+  //    (excludes prose colons like "ralph: do this" where charAfter+1 is space).
+  if (
+    charAfter === ":" &&
+    tokenEnd + 1 < text.length &&
+    /[\w-]/.test(text[tokenEnd + 1] ?? "")
+  ) {
+    return true;
+  }
+
+  // 3. File extension or property: followed by '.' AND a word char after that dot
+  //    (excludes sentence-ending periods like "run ralph." where charAfter+1 is space/end).
+  if (
+    charAfter === "." &&
+    tokenEnd + 1 < text.length &&
+    /[\w-]/.test(text[tokenEnd + 1] ?? "")
+  ) {
+    return true;
+  }
+
   return false;
 }
 
@@ -549,6 +663,8 @@ const QUESTION_PATTERNS: RegExp[] = [
   /^.*뭐가\s*있/,
   /^.*어떤\s*(게|것|거)\s*있/,
   /^.*차이가?\s*뭐/,
+  /^.*(버그|문제|오류|에러)\s*(임|인가|인가요|야|이야|인지|\?)/,
+  /^.*(이거|이것|그거|그것)(도|는)?\s*(버그|문제|오류|에러)/,
   // Korean meta-continuation patterns (referring to prior discussion)
   /^.*그것도/,
   /^.*보강할/,
@@ -558,10 +674,11 @@ const QUESTION_PATTERNS: RegExp[] = [
   /^.*\banything worth\b/i,
   /^.*\bwhat.*(feature|difference|reference)/i,
   /^.*\bcompare\b/i,
+  /^.*\b(is this|is it|is that)\s+(a\s+)?(bug|issue|problem|error)\b/i,
 ];
 
 /**
- * Content-agnostic interrogative test. A first line that BOTH leads with an
+ * Content-agnostic interrogative test. A line that BOTH leads with an
  * interrogative word AND ends with '?' is a question *about* something, not a
  * command — regardless of the topic. This generalises to any subject
  * (including workflow names) without enumerating topic words, unlike
@@ -571,18 +688,39 @@ const QUESTION_PATTERNS: RegExp[] = [
 // loose contains — suppressing a question that merely contains a workflow name
 // is exactly the desired behaviour.
 const INTERROGATIVE_WORD =
-  /(?:왜|어째서|어떻게|무슨|무엇|뭐|뭔|뭣|어디|언제|누가|누구|어느|\bwhy\b|\bwhats?\b|\bhow\b|\bwhen\b|\bwhere\b|\bwhich\b|\bwhose\b)/i;
+  /(?:왜|어째서|어떻게|무슨|무엇|뭐|뭔|뭣|어디|언제|누가|누구|어느|버그|문제|에러|맞나|인가|인지|맞아|인가요|\bwhy\b|\bwhats?\b|\bhow\b|\bwhen\b|\bwhere\b|\bwhich\b|\bwhose\b|\bbug\b|\bissue\b|\bproblem\b|\berror\b)/i;
 
 function isInterrogativeSentence(line: string): boolean {
   return /\?\s*$/.test(line) && INTERROGATIVE_WORD.test(line);
 }
 
+function firstAndLastLines(prompt: string): [string, string] {
+  const lines = prompt
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  return [lines[0] ?? "", lines[lines.length - 1] ?? ""];
+}
+
 export function isAnalyticalQuestion(prompt: string): boolean {
-  const firstLine = (prompt.split("\n")[0] ?? "").trim();
+  const [firstLine, lastLine] = firstAndLastLines(prompt);
   return (
     isInterrogativeSentence(firstLine) ||
-    QUESTION_PATTERNS.some((p) => p.test(firstLine))
+    isInterrogativeSentence(lastLine) ||
+    QUESTION_PATTERNS.some((p) => p.test(firstLine) || p.test(lastLine))
   );
+}
+
+/**
+ * True when the first or last line ends with '?'. Broader than
+ * isAnalyticalQuestion: it also covers yes/no questions with no interrogative
+ * word ("Does this work on Windows?", "계속해줄래?"). Used only to keep
+ * NATURAL-LANGUAGE matches of persistent workflows from firing — an explicit
+ * invocation phrased politely ("ultrawork로 해줄래?") still activates.
+ * Callers pass NFKC-normalized text, so a fullwidth '？' is already '?'.
+ */
+export function hasQuestionLine(prompt: string): boolean {
+  return firstAndLastLines(prompt).some((line) => /\?\s*$/.test(line));
 }
 
 export function stripCodeBlocks(text: string): string {
@@ -624,6 +762,21 @@ export function stripSystemEchoes(text: string): string {
 
 export function startsWithSlashCommand(prompt: string): boolean {
   return /^\/[a-zA-Z][\w-]*/.test(prompt.trim());
+}
+
+/**
+ * The persistent workflow a prompt invokes as a slash command (`/ultrawork …`,
+ * or namespaced as `/oma:ultrawork …`), or null. A typed slash command is the
+ * most explicit invocation there is, so it must persist like a named one.
+ */
+export function persistentSlashWorkflow(
+  prompt: string,
+  config: TriggerConfig,
+): string | null {
+  const m = /^\/(?:[\w-]+:)?([a-zA-Z][\w-]*)(?=\s|$)/.exec(prompt.trim());
+  const name = m?.[1]?.toLowerCase();
+  if (!name) return null;
+  return config.workflows[name]?.persistent ? name : null;
 }
 
 // ── Extension Detection ──────────────────────────────────────
@@ -707,6 +860,7 @@ function activateMode(
   projectDir: string,
   workflow: string,
   sessionId: string,
+  omaSid?: string | null,
 ): void {
   // Never persist a workflow under the unresolved-session fallback id: such a
   // file cannot be isolated per session and would cross-contaminate any later
@@ -718,6 +872,7 @@ function activateMode(
     sessionId,
     activatedAt: new Date().toISOString(),
     reinforcementCount: 0,
+    ...(omaSid ? { omaSid } : {}),
   };
   writeFileSync(
     join(getStateDir(projectDir), `${workflow}-state-${sessionId}.json`),
@@ -725,26 +880,72 @@ function activateMode(
   );
 }
 
+/**
+ * A session's index pointer is LIVE while its event log exists, has no
+ * session.ended, and its newest event is fresher than this TTL. The 2-hour
+ * window mirrors persistent-mode.ts STALE_HOURS: a crashed session that never
+ * emitted session.ended must not hold active.main forever.
+ */
+const LIVE_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+
+function isLiveL1Session(
+  readEvents: (
+    projectDir: string,
+    sid: string,
+  ) => Array<{ kind: string; ts: string }>,
+  projectDir: string,
+  sid: string,
+): boolean {
+  const events = readEvents(projectDir, sid);
+  if (events.length === 0) return false; // orphan pointer — claimable
+  if (events.some((event) => event.kind === "session.ended")) return false;
+  const newest = events[events.length - 1];
+  const newestMs = newest ? new Date(newest.ts).getTime() : Number.NaN;
+  if (Number.isNaN(newestMs)) return false;
+  return Date.now() - newestMs < LIVE_SESSION_TTL_MS;
+}
+
 async function activateL1WorkflowSession(
   projectDir: string,
   workflow: string,
   vendor: string,
   vendorSid: string,
+  trigger?: Record<string, unknown>,
   category = "main",
 ): Promise<string | null> {
   try {
-    const [{ setActiveSession }, { createEventId, emitEvent }] =
-      await Promise.all([
-        import("./state-marker.ts"),
-        import("./state-emit.ts"),
-      ]);
-    const sid = `oma-${createEventId()}`;
-    setActiveSession(projectDir, category, sid);
+    const [
+      { claimActiveSession },
+      { createSessionId, emitEvent, readEvents, vendorHomePayload },
+    ] = await Promise.all([
+      import("./state-marker.ts"),
+      import("./state-emit.ts"),
+    ]);
+    // Session IDs use the canonical YYYY-MM-DD_<16> format from
+    // session-storage; consumers (L1 probe tests, state repair) rely on it.
+    const sid = createSessionId();
+    // M12c: never stomp a LIVE different session's pointer. The claim runs
+    // inside the index lock; when the slot is held by a live session we still
+    // create our own session + events under the new sid (persistent-mode gate
+    // events use the omaSid stored in the per-vendor-session state file), but
+    // active[category] keeps pointing at the live session until it ends or
+    // goes stale. getActiveSid consumers (state-boundary rehydration) thus
+    // stay pinned to the session that actually owns the workflow.
+    claimActiveSession(projectDir, category, sid, (existingSid) =>
+      isLiveL1Session(readEvents, projectDir, existingSid),
+    );
     await emitEvent(projectDir, sid, {
       kind: "session.created",
       vendor,
       vendorSid,
-      payload: { workflow, category },
+      // `trigger` records WHY the workflow was routed (matched keyword or
+      // explicit slash) — never the prompt text.
+      payload: {
+        workflow,
+        category,
+        ...(trigger ? { trigger } : {}),
+        ...vendorHomePayload(vendor),
+      },
     });
     return sid;
   } catch (e) {
@@ -770,11 +971,12 @@ export const DEACTIVATION_PHRASES: Record<string, string[]> = {
   pl: ["workflow zakończony", "workflow ukończony"],
 };
 
-export function isDeactivationRequest(prompt: string, lang: string): boolean {
-  const phrases = [
-    ...(DEACTIVATION_PHRASES.en ?? []),
-    ...(lang !== "en" ? (DEACTIVATION_PHRASES[lang] ?? []) : []),
-  ];
+export function isDeactivationRequest(prompt: string): boolean {
+  // All languages merged, never gated by config language (same rationale as
+  // collectLangEntries): a user prompting in Korean must be able to say
+  // "워크플로우 완료" even when `language: en`. A phrase only matches a prompt
+  // actually written in that language, so merging cannot misfire.
+  const phrases = Object.values(DEACTIVATION_PHRASES).flat();
   const normalized = normalizeForMatching(prompt);
   return phrases.some((phrase) =>
     normalized.includes(normalizeForMatching(phrase)),
@@ -831,8 +1033,11 @@ export interface WorkflowCandidate {
   declarationIndex: number;
   /** True if any suppression filter (RC3 technical-reference is a hard drop
    * and never reaches this point; informational-context / pasted-content /
-   * reinforcement) applies to this specific match. */
+   * reinforcement / question-gated natural language) applies to this match. */
   suppressed: boolean;
+  /** True when the matched keyword is one of the workflow's `explicit`
+   * invocations — rule #0, and the only way to activate persistent mode. */
+  explicit?: boolean;
 }
 
 /**
@@ -840,6 +1045,9 @@ export interface WorkflowCandidate {
  * prompt, or `null` if none survive.
  *
  * Ranking order (only consulted on a tie with the previous rule):
+ *   0. An explicit invocation (the workflow's own name, `explicit` in
+ *      triggers.json) beats any natural-language match: "orchestrate this
+ *      step by step" names orchestrate even though "step by step" is longer.
  *   1. Longest matched keyword/phrase wins — "deepsec pr review" (18 chars)
  *      beats "review" (6 chars) even though "review" also literally matches
  *      as a substring of the same sentence.
@@ -877,6 +1085,9 @@ export function pickWinningCandidate(
   const eligible = candidates.filter((c) => !c.suppressed);
   if (eligible.length === 0) return null;
   eligible.sort((a, b) => {
+    if (Boolean(a.explicit) !== Boolean(b.explicit)) {
+      return a.explicit ? -1 : 1;
+    }
     if (b.keywordLength !== a.keywordLength) {
       return b.keywordLength - a.keywordLength;
     }
@@ -891,12 +1102,91 @@ export function pickWinningCandidate(
   return eligible[0] ?? null;
 }
 
+// ── Compiled trigger cache ────────────────────────────────────
+
+interface CompiledWorkflow {
+  workflow: string;
+  def: TriggerWorkflowDef;
+  declarationIndex: number;
+  /** Lowercased `explicit` invocations (persistent workflows only). */
+  explicit: ReadonlySet<string>;
+  keywordEntries: KeywordPatternEntry[];
+  rawEntries: RawPatternEntry[];
+}
+
+interface CompiledTriggers {
+  workflows: CompiledWorkflow[];
+  infoPatterns: RegExp[];
+  excluded: ReadonlySet<string>;
+}
+
+// Regexes are compiled without the `g` flag, so exec() is stateless and the
+// compiled set can be shared across run() calls (the in-process `oma hook
+// run` path and long-lived test workers call run() many times).
+const compiledCache = new WeakMap<TriggerConfig, CompiledTriggers>();
+
+export function compileTriggers(config: TriggerConfig): CompiledTriggers {
+  const cached = compiledCache.get(config);
+  if (cached) return cached;
+  const compiled: CompiledTriggers = {
+    workflows: Object.entries(config.workflows).map(
+      ([workflow, def], declarationIndex) => ({
+        workflow,
+        def,
+        declarationIndex,
+        explicit: new Set(
+          (def.persistent ? (def.explicit ?? []) : []).map((kw) =>
+            kw.toLowerCase(),
+          ),
+        ),
+        keywordEntries: buildPatternEntries(def.keywords),
+        rawEntries: buildRawPatternEntries(def.patterns),
+      }),
+    ),
+    infoPatterns: buildInformationalPatterns(config),
+    excluded: new Set(config.excludedWorkflows),
+  };
+  compiledCache.set(config, compiled);
+  return compiled;
+}
+
+/**
+ * Injected context for a winning match. Explicit invocations and
+ * non-persistent workflows start immediately; a persistent workflow inferred
+ * from natural language is only suggested — persistent mode is not active, so
+ * the agent decides whether the request really calls for it.
+ */
+export function buildWorkflowContext(
+  workflow: string,
+  options: { persistent: boolean; explicit: boolean; explicitExample?: string },
+): string[] {
+  const header = `[OMA WORKFLOW: ${workflow.toUpperCase()}]`;
+  const doc = `\`.agents/workflows/${workflow}.md\``;
+  if (options.persistent && !options.explicit) {
+    const example = options.explicitExample
+      ? ` (e.g. "${options.explicitExample}")`
+      : "";
+    return [
+      header,
+      `User intent may match the /${workflow} workflow (inferred from natural language, not an explicit invocation).`,
+      `If the request clearly calls for it, read and follow ${doc}; otherwise handle the request directly.`,
+      `Persistent mode was NOT activated: it starts only when the user names the workflow explicitly${example}.`,
+    ];
+  }
+  return [
+    header,
+    `User intent matches the /${workflow} workflow.`,
+    `Read and follow ${doc} step by step.`,
+    `IMPORTANT: Start the workflow IMMEDIATELY. Do not ask for confirmation.`,
+  ];
+}
+
 // ── Pure handler (canonical ABI) ─────────────────────────────
 
 /**
  * Pure decision function — the single logic source for keyword detection.
  *
- * Called in-process by `oma hook` dispatch (Task 3+) and by the standalone
+ * Called in-process by `oma hook run` dispatch (Task 3+) and by the standalone
  * `main()` entry below (pi subprocess path). Both paths share exactly this
  * code; no business logic is duplicated.
  *
@@ -913,38 +1203,55 @@ export async function run(
   if (input.kind !== "prompt") return null;
 
   const { prompt } = input;
-  const { vendor, cwd: projectDir, sid: sessionId = "unknown" } = ctx;
+  const { cwd: projectDir, sid: sessionId = "unknown" } = ctx;
+  // Recorded on the L1 session only; the output dialect stays ctx.vendor.
+  const vendor = ctx.host ?? ctx.vendor;
 
   if (!prompt.trim()) return null;
-  if (startsWithSlashCommand(prompt)) return null;
+  if (startsWithSlashCommand(prompt)) {
+    // The command itself loads the workflow; the hook only makes a
+    // persistent one enforceable by writing its state file.
+    const slashWorkflow = persistentSlashWorkflow(prompt, TRIGGERS);
+    if (slashWorkflow) {
+      const omaSid = await activateL1WorkflowSession(
+        projectDir,
+        slashWorkflow,
+        vendor,
+        sessionId,
+        { source: "user-explicit", command: `/${slashWorkflow}` },
+      );
+      activateMode(projectDir, slashWorkflow, sessionId, omaSid);
+    }
+    return null;
+  }
   // Relayed inter-agent messages carry another agent's text, not a user
   // request — their content must not drive workflow keyword detection.
   if (isRelayedAgentMessage(prompt)) return null;
 
-  const config = loadConfig();
-  const lang = detectLanguage(projectDir);
+  const config = TRIGGERS;
 
   // Check for deactivation request before workflow detection
-  if (isDeactivationRequest(prompt, lang)) {
+  if (isDeactivationRequest(prompt)) {
     deactivateAllPersistentModes(projectDir, sessionId);
-    // Grok's resume context lives in a session-start file, not L1 stdout — clear it.
-    if (vendor === "grok") clearGrokContext(projectDir);
     return null;
   }
 
-  const infoPatterns = buildInformationalPatterns(config);
+  const compiled = compileTriggers(config);
+  const { infoPatterns } = compiled;
   // Guard 2: Strip code blocks, inline code, and pasted system-echo blocks
   // before scanning for keywords. NFKC normalization collapses fullwidth Latin.
   const cleaned = normalizeForMatching(
     stripSystemEchoes(stripCodeBlocks(prompt)),
   );
-  const excluded = new Set(config.excludedWorkflows);
 
   // Guard 3: Load reinforcement suppression state
   const kwState = loadKwState(projectDir);
 
   // Skip persistent workflows entirely if the prompt is an analytical question
   const analytical = isAnalyticalQuestion(cleaned);
+  // Yes/no questions ("Does this work on Windows?") keep natural-language
+  // persistent matches from firing; explicit invocations are exempt.
+  const questionLike = hasQuestionLine(cleaned);
 
   // shouldSkipAllWorkflows does not depend on the workflow being evaluated —
   // hoisted out of the loop (was re-checked on every iteration pre-ranking).
@@ -962,17 +1269,16 @@ export async function run(
   // ranking (see pickWinningCandidate) decides the winner, replacing the old
   // declaration-order first-match-wins loop.
   const candidates: WorkflowCandidate[] = [];
-  const workflowEntries = Object.entries(config.workflows);
 
-  for (
-    let declarationIndex = 0;
-    declarationIndex < workflowEntries.length;
-    declarationIndex++
-  ) {
-    const entry = workflowEntries[declarationIndex];
-    if (!entry) continue;
-    const [workflow, def] = entry;
-    if (excluded.has(workflow)) continue;
+  for (const {
+    workflow,
+    def,
+    declarationIndex,
+    explicit: explicitKeywords,
+    keywordEntries,
+    rawEntries,
+  } of compiled.workflows) {
+    if (compiled.excluded.has(workflow)) continue;
 
     const workflowPredicate = KEYWORD_SKIP_PREDICATES[workflow];
     if (workflowPredicate?.(cleaned)) continue;
@@ -981,7 +1287,11 @@ export async function run(
 
     const reinforced = isReinforcementSuppressed(kwState, workflow);
 
-    const considerMatch = (regex: RegExp, specificityText: string) => {
+    const considerMatch = (
+      regex: RegExp,
+      specificityText: string,
+      explicit: boolean,
+    ) => {
       const match = regex.exec(cleaned);
       if (!match) return;
       // RC3: compound technical tokens (ralph:verify, ralph.md,
@@ -1004,6 +1314,9 @@ export async function run(
         origPrompt.length,
       );
       const text = specificityText.trim();
+      // A persistent workflow inferred from natural language inside a
+      // question is not a request to start it.
+      const questionGated = def.persistent && !explicit && questionLike;
 
       candidates.push({
         workflow,
@@ -1014,22 +1327,20 @@ export async function run(
         keywordLength: text.length,
         isMultiWord: /\s/.test(text),
         declarationIndex,
-        suppressed: informational || pasted || reinforced,
+        suppressed: informational || pasted || reinforced || questionGated,
+        explicit,
       });
     };
 
-    for (const { regex, keyword } of buildPatternEntries(
-      def.keywords,
-      lang,
-      config.cjkScripts,
-    )) {
-      considerMatch(regex, keyword);
+    for (const { regex, keyword } of keywordEntries) {
+      considerMatch(
+        regex,
+        keyword,
+        explicitKeywords.has(keyword.toLowerCase()),
+      );
     }
-    for (const { regex, source } of buildRawPatternEntries(
-      def.patterns,
-      lang,
-    )) {
-      considerMatch(regex, source);
+    for (const { regex, source } of rawEntries) {
+      considerMatch(regex, source, false);
     }
   }
 
@@ -1037,21 +1348,35 @@ export async function run(
   if (!winner) return null;
 
   const { workflow } = winner;
+  const explicit = winner.explicit === true;
 
-  if (winner.persistent) {
-    activateMode(projectDir, workflow, sessionId);
+  // Activate the L1 session first so its sid can be recorded in the
+  // persistent-mode state file (the Stop hook emits gate events under it).
+  const omaSid = await activateL1WorkflowSession(
+    projectDir,
+    workflow,
+    vendor,
+    sessionId,
+    {
+      source: explicit ? "user-explicit" : "keyword",
+      matchedKeyword: winner.matchText,
+    },
+  );
+  // Only an explicit invocation enables persistent mode (the Stop hook blocks
+  // while the state file exists). Natural-language matches such as "keep
+  // going" or "implement the login feature" only suggest the workflow.
+  if (winner.persistent && explicit) {
+    activateMode(projectDir, workflow, sessionId, omaSid);
   }
-  await activateL1WorkflowSession(projectDir, workflow, vendor, sessionId);
-  const updatedState = recordKwTrigger(kwState, workflow);
-  saveKwState(projectDir, updatedState);
+  // Locked read-modify-write: re-reads fresh state inside the lock so two
+  // concurrent sessions' trigger records merge instead of clobbering (M12).
+  updateKwState(projectDir, (current) => recordKwTrigger(current, workflow));
 
-  const contextLines = [
-    `[OMA WORKFLOW: ${workflow.toUpperCase()}]`,
-    `User intent matches the /${workflow} workflow.`,
-    `Read and follow \`.agents/workflows/${workflow}.md\` step by step.`,
-    `User request: ${prompt}`,
-    `IMPORTANT: Start the workflow IMMEDIATELY. Do not ask for confirmation.`,
-  ];
+  const contextLines = buildWorkflowContext(workflow, {
+    persistent: winner.persistent,
+    explicit,
+    explicitExample: config.workflows[workflow]?.explicit?.[0],
+  });
 
   if (config.extensionRouting) {
     const extensions = detectExtensions(prompt);
@@ -1081,7 +1406,7 @@ async function main() {
   // Guard 1: Only process genuine user prompts — skip agent-generated content
   if (!isGenuineUserPrompt(input)) process.exit(0);
 
-  const vendor = detectVendor(input);
+  const vendor = detectVendorFromInput(input, "prompt", import.meta.filename);
   const projectDir = getProjectDir(vendor, input);
   const sessionId = getSessionId(input);
   let prompt = normalizePromptInput(input.prompt);
@@ -1093,7 +1418,7 @@ async function main() {
   if (vendor === "antigravity" && !prompt) {
     const invocationNum = input.invocationNum;
     if (typeof invocationNum === "number" && invocationNum > 1) process.exit(0);
-    prompt = readAgyPrompt(input.transcriptPath);
+    prompt = readAgyPrompt(input.transcriptPath, input.lastUserInput);
   }
 
   // Build canonical inputs and delegate to run() — single logic source.

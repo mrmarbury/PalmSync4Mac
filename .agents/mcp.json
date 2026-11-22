@@ -32,6 +32,12 @@
         "--context",
         "oma"
       ]
+    },
+    "aside": {
+      "command": "aside",
+      "args": [
+        "mcp"
+      ]
     }
   },
   "memoryConfig": {

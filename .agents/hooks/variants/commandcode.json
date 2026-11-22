@@ -8,7 +8,7 @@
   "events": {
     "SessionStart": [
       {
-        "hook": "serena-primer.ts",
+        "hook": "code-intelligence-primer.ts",
         "timeout": 3
       },
       {
@@ -16,9 +16,27 @@
         "timeout": 5
       }
     ],
-    "Stop": {
-      "hook": "persistent-mode.ts",
-      "timeout": 5
-    }
+    "PostToolUse": [
+      {
+        "hook": "refactor-guard.ts",
+        "matcher": "write|edit",
+        "timeout": 5
+      },
+      {
+        "hook": "skill-route.ts",
+        "matcher": "activate_skill|read|shell",
+        "timeout": 3
+      }
+    ],
+    "Stop": [
+      {
+        "hook": "persistent-mode.ts",
+        "timeout": 30
+      },
+      {
+        "hook": "refactor-guard.ts",
+        "timeout": 5
+      }
+    ]
   }
 }

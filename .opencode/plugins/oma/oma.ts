@@ -49,6 +49,10 @@
  *       Known upstream caveat: plugin hooks do not intercept subagent tool
  *       calls (anomalyco/opencode#5894), so the guard covers the primary
  *       agent only.
+ *   tool.execute.after                  ← PostToolUse (skill-route)
+ *       Observation only: records a skill load (`skill` tool, or a SKILL.md
+ *       read through `read` / `bash`). Needs `input.args` (opencode 1.1.62+,
+ *       Kilo); never mutates the output.
  *   event: "session.idle"               ← Stop (BEST-EFFORT / re-entrant)
  *       Runs persistent-mode. If it returns a block decision, the workflow is
  *       still active: re-enter the loop by posting the block reason as a new
@@ -61,9 +65,38 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+/**
+ * persistent-mode may run a goal stop gate (25s cap in persistent-mode.ts).
+ * Its budget matches the variant Stop handler timeout (30s) so this bridge
+ * never kills the hook mid-gate — the other core scripts keep 5s.
+ */
+const PERSISTENT_MODE_TIMEOUT_MS = 30_000;
+
+/**
+ * Tools that can load a skill: the native `skill` tool, `read`, and the shell
+ * (`bash` on opencode 1.x / Kilo, `shell` on opencode 2.x).
+ */
+const SKILL_LOAD_TOOLS = new Set(["skill", "read", "bash", "shell"]);
+
 /** Absolute path to a core script copied next to this bridge at install time. */
 function corePath(script: string): string {
   return fileURLToPath(new URL(`./${script}`, import.meta.url));
+}
+
+/**
+ * Directory of this bridge, exported to the handlers as OMA_HOOK_BRIDGE_DIR so
+ * test-filter finds `filter-test-output.sh` when the bridge ships as the
+ * `oh-my-agent-opencode` npm package (outside the project tree).
+ */
+function bridgeEnv(): NodeJS.ProcessEnv {
+  try {
+    return {
+      ...process.env,
+      OMA_HOOK_BRIDGE_DIR: fileURLToPath(new URL(".", import.meta.url)),
+    };
+  } catch {
+    return process.env;
+  }
 }
 
 /**
@@ -73,19 +106,28 @@ function corePath(script: string): string {
  * the core scripts resolve the project (git) root the same way they do for
  * every other vendor. Non-zero exit (persistent-mode blocks with exit 2) is
  * expected: stdout is still captured and parsed.
+ *
+ * `--no-env-file` is REQUIRED under the nono ps4m sandbox profile: the
+ * profile denies every .env path (secrets stay out of the sandbox), and
+ * bun's automatic .env loading treats the EPERM on the existing project
+ * .env as fatal — the subprocess dies silently with exit 1 and the hook
+ * fail-opens, so every prompt/tool hook would silently no-op without this
+ * flag. The core scripts read config from the inherited opencode process
+ * env, never from .env.
  */
 function runCore(
   script: string,
   payload: Record<string, unknown>,
   cwd: string,
+  timeoutMs = 5000,
 ): Record<string, unknown> | null {
   try {
-    const res = spawnSync("bun", [corePath(script)], {
+    const res = spawnSync("bun", ["--no-env-file", corePath(script)], {
       input: JSON.stringify(payload),
       cwd,
       encoding: "utf-8",
-      timeout: 5000,
-      env: process.env,
+      timeout: timeoutMs,
+      env: bridgeEnv(),
     });
     const out = (res.stdout ?? "").trim();
     if (!out) return null;
@@ -380,6 +422,50 @@ export default (async ({
     },
 
     /**
+     * tool.execute.after ← PostToolUse (skill-route, observation only)
+     *
+     * Records which skill the model loaded: the native `skill` tool, or a
+     * SKILL.md opened through `read` / `bash` (`shell` on opencode 2.x).
+     * Spawns only for those tools when the arguments can name a skill, since
+     * every tool call passes through here. Fail-open and never mutates output.
+     */
+    "tool.execute.after": async (input: {
+      tool?: string;
+      sessionID?: string;
+      args?: unknown;
+    }): Promise<void> => {
+      const tool = input.tool;
+      if (!tool || !SKILL_LOAD_TOOLS.has(tool)) return;
+      const args = input.args;
+      if (!args || typeof args !== "object" || Array.isArray(args)) return;
+      if (tool !== "skill") {
+        let serialized = "";
+        try {
+          serialized = JSON.stringify(args);
+        } catch {
+          return;
+        }
+        if (
+          !serialized.includes("SKILL.md") &&
+          !serialized.includes("skill://")
+        ) {
+          return;
+        }
+      }
+      runCore(
+        "skill-route.ts",
+        {
+          tool_name: tool,
+          tool_input: args,
+          cwd,
+          sessionId: input.sessionID ?? "",
+          hook_event_name: "PostToolUse",
+        },
+        cwd,
+      );
+    },
+
+    /**
      * event: "session.idle" ← Stop (BEST-EFFORT / re-entrant)
      *
      * opencode delivers session.idle over the event bus (it is no longer a
@@ -410,6 +496,7 @@ export default (async ({
         "persistent-mode.ts",
         { cwd, sessionId: sessionID, hook_event_name: "Stop" },
         cwd,
+        PERSISTENT_MODE_TIMEOUT_MS,
       );
 
       if (pm?.decision !== "block") {

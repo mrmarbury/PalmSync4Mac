@@ -3,8 +3,23 @@
   "mcp": {
     "hexdocs": {
       "type": "local",
-      "command": ["npx", "-y", "hexdocs-mcp@0.6.0"],
+      "command": [
+        "npx",
+        "-y",
+        "hexdocs-mcp@0.6.0"
+      ],
+      "enabled": true
+    },
+    "aside": {
+      "type": "local",
+      "command": [
+        "aside",
+        "mcp"
+      ],
       "enabled": true
     }
-  }
+  },
+  "plugin": [
+    "./plugins/oma/oma.ts"
+  ]
 }

@@ -17,6 +17,7 @@
  * Event mapping (see README.md):
  *   before_agent_start  ← UserPromptSubmit  (keyword-detector + skill-injector)
  *   tool_call (bash)    ← PreToolUse        (scm-guard + test-filter)
+ *   tool_result         ← PostToolUse       (skill-route, observation only)
  *   agent_settled       ← Stop              (persistent-mode + re-entry)
  *
  * tool_call blocking: a handler that returns `{ block: true, reason }` blocks
@@ -38,6 +39,13 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+/**
+ * persistent-mode may run a goal stop gate (25s cap in persistent-mode.ts).
+ * Its budget matches the variant Stop handler timeout (30s) so this bridge
+ * never kills the hook mid-gate — the other core scripts keep 5s.
+ */
+const PERSISTENT_MODE_TIMEOUT_MS = 30_000;
+
 /** Absolute path to a core script copied next to this bridge at install time. */
 function corePath(script: string): string {
   return fileURLToPath(new URL(`./${script}`, import.meta.url));
@@ -53,13 +61,14 @@ function corePath(script: string): string {
 function runCore(
   script: string,
   payload: Record<string, unknown>,
+  timeoutMs = 5000,
 ): Record<string, unknown> | null {
   try {
     const res = spawnSync("bun", [corePath(script)], {
       input: JSON.stringify(payload),
       cwd: process.cwd(),
       encoding: "utf-8",
-      timeout: 5000,
+      timeout: timeoutMs,
       env: process.env,
     });
     const out = (res.stdout ?? "").trim();
@@ -197,6 +206,38 @@ export default function omaHooks(pi: ExtensionAPI): void {
     return undefined;
   });
 
+  // tool_result ← PostToolUse. skill-route records a skill load: pi has no
+  // skill tool, so the model loads a skill body by `read` (or `bash`) on its
+  // SKILL.md. Observation only — the result is never altered. Spawns only when
+  // the input names a SKILL.md, since every tool call passes through here.
+  try {
+    pi.on("tool_result", async (event, ctx) => {
+      try {
+        if (event.isError) return undefined;
+        if (event.toolName !== "read" && event.toolName !== "bash") {
+          return undefined;
+        }
+        const input = event.input as Record<string, unknown> | undefined;
+        if (!input || !JSON.stringify(input).includes("SKILL.md")) {
+          return undefined;
+        }
+        const sessionId = sessionIdOf(ctx);
+        runCore("skill-route.ts", {
+          tool_name: event.toolName,
+          tool_input: input,
+          cwd: process.cwd(),
+          hook_event_name: "PostToolUse",
+          ...(sessionId ? { sessionId } : {}),
+        });
+      } catch {
+        // Observation only: never fail a tool result.
+      }
+      return undefined;
+    });
+  } catch {
+    // pi build without `tool_result` — skill loads are not recorded there.
+  }
+
   // agent_settled ← Stop. Persistent-mode re-entry: after a run fully settles,
   // ask persistent-mode.ts whether a workflow is still active; if so, re-enter
   // the loop with its reinforcement text. Capability-guarded — pi builds before
@@ -212,11 +253,15 @@ export default function omaHooks(pi: ExtensionAPI): void {
         if (typeof pi.sendUserMessage !== "function") return undefined;
 
         const sessionId = sessionIdOf(ctx);
-        const pm = runCore("persistent-mode.ts", {
-          cwd: process.cwd(),
-          hook_event_name: "Stop",
-          ...(sessionId ? { sessionId } : {}),
-        });
+        const pm = runCore(
+          "persistent-mode.ts",
+          {
+            cwd: process.cwd(),
+            hook_event_name: "Stop",
+            ...(sessionId ? { sessionId } : {}),
+          },
+          PERSISTENT_MODE_TIMEOUT_MS,
+        );
 
         // persistent-mode classifies this subprocess as a generic vendor, so
         // the decision arrives as `{ decision: "block" }`; also accept pi's

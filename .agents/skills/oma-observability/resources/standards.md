@@ -140,7 +140,7 @@ This skill operates on OSI layers L3, L4, mesh (L4-L7 hybrid), and L7. The follo
 | L5 | Session (full) | gRPC session semantics moved to L7 instrumentation; WebSocket deferred | WebSocket-specific vendor tooling |
 | L6 | Presentation (full) | TLS kept as security context attributes only (`tls.*` Development tier); full TLS inspection is not OTel's domain | Wireshark for packet-level TLS; Cloudflare Radar for TLS ecosystem data; vendor-specific TLS inspection tooling |
 
-Rationale: approximately 90% of production debugging occurs at L3, L4, mesh, and L7. L1/L2 are opaque to SaaS workloads. L5/L6 full coverage requires OTel semconv maturity that does not yet exist (Development tier). This decision is design decision D2 in the design document.
+Rationale: approximately 90% of production debugging occurs at L3, L4, mesh, and L7. L1/L2 are opaque to SaaS workloads. L5/L6 full coverage requires OTel semconv maturity that does not yet exist (Development tier).
 
 ---
 
@@ -164,14 +164,13 @@ Distributed traces depend on monotonic, synchronized clocks across all nodes. Cl
 
 ### Span timestamp validation rule
 
-A valid trace satisfies:
+Validate each span against its own timestamps:
 
 ```
-parent_span.start_time <= child_span.start_time
-child_span.end_time <= parent_span.end_time
+span.start_time <= span.end_time
 ```
 
-A violation where `child_span.end_time > parent_span.end_time` is a clock-drift indicator, not necessarily a code bug. Flag these in meta-observability pipeline checks (see `resources/meta-observability.md`).
+A parent span may end before an asynchronous child completes; the OTel Trace API explicitly allows children to continue after their parent ends. Parent/child interval containment is not a validity invariant or clock-drift detector. Investigate suspicious cross-host ordering using measured clock offsets and the actual synchronous/asynchronous operation semantics. See `resources/meta-observability.md` and <https://opentelemetry.io/docs/specs/otel/trace/api/>.
 
 ### Anti-pattern
 

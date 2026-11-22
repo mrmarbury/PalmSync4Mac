@@ -11,19 +11,19 @@ otherwise the chain falls through to a key-free default.
 | Capability | order (config) | real (key/resource) | key-free fallback | marker |
 |------------|----------------|---------------------|-------------------|--------|
 | script | `[agent-script]` | agent-authored script (agent-as-key) | — | — |
-| voice | `[oma-voice]` | Voicebox MCP TTS + STT timing | estimated timing (no wav) | — |
-| visual | `[oma-image, pexels, pixelle]` | Pexels stock · Pixelle AIGC | oma-image stills + Ken Burns | `TODO(oma-deferred): pexels` / `pixelle` |
-| caption | `[oma-captions]` | oma-translator for non-source locale | source-locale text from timing | `TODO(oma-deferred): oma-translator` |
-| capture | `[playwright-web, cap]` (informational — dispatch is by `--source`) | Playwright headed web capture (`--source web`) · Cap CLI trigger | guided protocol + `--capture <path>` | `TODO(oma-deferred): cap` |
-| compositor | `[remotion, mpt]` | Remotion live render (wired, default) · MPT custom-script | deterministic placeholder mp4 (toolchain missing / render failed) | — |
+| voice | `[oma-voice]` | Voicebox MCP or VoiceStudio REST TTS + STT timing (`voice.backend`) | estimated timing (no wav) | — |
+| visual | `[oma-image, pexels, pixelle]` | Pexels stock · Pixelle AIGC | static oma-image stills | `TODO(oma-deferred): pexels` / `pixelle` |
+| caption | `[oma-captions]` | oma-translation for non-source locale | source-locale text from timing | `TODO(oma-deferred): oma-translation` |
+| capture | Cap / guided capture | Human-recorded video ingestion | guided protocol + `--capture <path>` | `TODO(oma-deferred): cap` |
+| compositor | `[hyperframes, mpt]` | HyperFrames live render (wired, default) · MPT custom-script | none: missing toolchain, failed render, or invalid output fails with diagnostics | — |
 
 ## Tier model
 
 | Tier | Surface | Providers | Notes |
 |:---:|---------|-----------|-------|
-| 1 | CLI-first (subprocess) | Remotion, MPT, oma-image, oma-slide, oma-voice (REST) | deterministic; preferred whenever a CLI can drive the work |
+| 1 | CLI-first (subprocess) | HyperFrames, MPT, oma-image, oma-slide, oma-voice (REST) | deterministic; preferred whenever a CLI can drive the work |
 | 2 | MCP | Voicebox MCP, Pixelle-MCP | localhost MCP; Pixelle off by default, community-MCP consent + key |
-| 3 | Guided (human) | playwright-web (headed web capture, human drives the flow), Cap | `demo` capture is performed by a human |
+| 3 | Guided (human) | Cap / human-recorded video | `demo` capture is performed by a human |
 
 ## oma-voice (VoiceProvider + timing)
 
@@ -37,20 +37,36 @@ otherwise the chain falls through to a key-free default.
 | Side effect | Narration plays on the speakers during synthesis |
 | Health | exit 5 if MCP down; exit 3 if the named profile is missing |
 
+### VoiceStudio backend
+
+`voice.backend` in oma-config selects the speech
+backend behind the same `oma-voice` provider: `auto` (default) uses Voicebox
+when healthy, otherwise VoiceStudio; `voicebox` and `voicestudio` never fall
+through. Any live failure degrades to estimated timing with a warning.
+
+| Field | Value |
+|-------|-------|
+| Surface | VoiceStudio REST at `OMA_VOICESTUDIO_URL` / `VOICESTUDIO_URL` (default `127.0.0.1:3900`) |
+| Synthesize | `POST /v1/audio/speech{model: tts-1, voice: <profile id>, input, response_format: wav}`; a non-WAV body is rejected |
+| Timing (real) | `POST /v1/audio/transcriptions` (`verbose_json`, word + segment timestamps) -> `source: voicestudio-stt`; a failed transcription keeps the wav with estimated segments |
+| Auth | none on loopback; `OMNIVOICE_API_KEY` bearer only to a loopback or HTTPS backend |
+| Side effect | none on the speakers; first use of an engine may download its model inside the backend |
+| Doctor | `oma video doctor` reports `voicestudio` as an optional check |
+
 ## oma-image (VisualProvider: generate) — default key-free visual
 
 | Field | Value |
 |-------|-------|
-| Transport | `oma image generate "<prompt>" --vendor auto --size <16-multiple> --format json --out <runDir>/visuals` |
+| Transport | `oma image generate "<prompt>" --vendor auto --size <16-multiple> --output json --output-dir <runDir>/visuals` |
 | Aspect -> size | snapped to nearest 16-multiple: 9:16 -> 1088×1920, 16:9 -> 1920×1088, 1:1 -> 1088×1088 |
-| Crop | Remotion crops the still to the exact frame; Ken Burns adds motion |
+| Crop | HyperFrames crops the still to the exact frame; the still stays static |
 | Cost | free defaults (pollinations / antigravity); codex per-image per oma-image config |
 
 ## oma-slide (VisualProvider: slide, explainer) — key-free
 
 | Field | Value |
 |-------|-------|
-| Transport | `oma slide` generate deck -> `oma slide png --dir <deck> --out-dir <runDir>/visuals` -> 1920×1080 frames |
+| Transport | `oma slide` generate deck -> `oma slide export png --workspace <deck> --output-dir <runDir>/visuals` -> 1920×1080 frames |
 | Layering | oma-slide internally calls oma-image (same key-free chain) |
 | Use | explainer code/diagram frames |
 
@@ -60,7 +76,7 @@ otherwise the chain falls through to a key-free default.
 |-------|-------|
 | Auth | `PEXELS_API_KEY` env var |
 | Enabled | only when the key is present (`providers.pexels.enabled` gate) |
-| Fallback | absent key -> skip; chain falls to oma-image stills + Ken Burns |
+| Fallback | absent key -> skip; chain falls to static oma-image stills |
 | Marker | `TODO(oma-deferred): pexels` on the real-call branch until the key is provisioned |
 
 ## Pixelle-MCP + RunningHub (VisualProvider: aigc) — paid, off by default
@@ -83,14 +99,14 @@ otherwise the chain falls through to a key-free default.
 | Path safety | `--capture` is absolutized, `$PWD`-guarded, existence + format validated |
 | Marker | `TODO(oma-deferred): cap` on the CLI-trigger branch |
 
-## Compositor: Remotion (default) / MPT (alt)
+## Compositor: HyperFrames (default) / MPT (alt)
 
 | Field | Value |
 |-------|-------|
-| Real | **wired (default)** — the CLI adapter spawns `npx remotion render src/index.ts <CompId> out.mp4 --props=render-spec.json` in the vendored `resources/remotion/` |
+| Real | Agent-authored `<runDir>/hyperframes/index.html`; `compose` stages local assets and the authoring contract. `render` runs the cached CLI: lint → strict MP4 render → ffprobe. |
 | Requires | Node + Chrome Headless Shell + FFmpeg (bootstrapped once via `oma video doctor --install`) |
-| Fallback | deterministic placeholder mp4 derived from the render-spec, used only when the toolchain is missing or the render fails (well-formed run dir + manifest, zero toolchain) |
-| Determinism | render-spec + assets + seed + embedded Pretendard (fetched once by `oma video doctor --install`; system-font fallback when absent); re-render is byte-stable |
+| Failure | Missing toolchain, render error, missing video stream, or non-positive duration fails with diagnostics. `OMA_VIDEO_MOCK=1` may write a deterministic placeholder only for tests. |
+| Determinism | Saved render spec, local assets, authored HTML, seed, recorded CLI version, and embedded font. Byte identity across different browser/OS versions is not guaranteed. |
 | MPT alt | inject the agent-written script (custom-script mode); keys env-only + log masking; `--compositor mpt` |
 
 ## Error Classification
@@ -99,7 +115,7 @@ otherwise the chain falls through to a key-free default.
 |------------|-------------|---------------------|
 | `provider-unavailable` | try next provider in `order`; chain-exhaustion fails | 5 |
 | `auth-required` | fail; hint tells the user how to authenticate | 5 |
-| `compositor-bootstrap` | fail; point to `oma video doctor` (+ MPT fallback) | 1 |
+| `compositor-bootstrap` | fail; point to `oma video doctor` or `oma video doctor --install-mpt` | 1 |
 | `cost-guardrail` | confirm; decline -> stop | 1 |
 | `capture-required` | guided protocol; not a hard error | (guided) |
 | `schema-validation` | fail; identify the offending field | 4 |
